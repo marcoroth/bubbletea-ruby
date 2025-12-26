@@ -1,0 +1,77 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Result example - demonstrates getting a value from the TUI after exit
+# Ported from bubbletea/examples/result
+
+require "bundler/setup"
+require "bubbletea"
+
+class Result
+  include Bubbletea::Model
+
+  CHOICES = ["Taro", "Coffee", "Lychee"].freeze
+
+  attr_reader :choice
+
+  def initialize
+    @cursor = 0
+    @choice = nil
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      when "enter"
+        @choice = CHOICES[@cursor]
+        [self, Bubbletea.quit]
+      when "down", "j"
+        @cursor = (@cursor + 1) % CHOICES.length
+        [self, nil]
+      when "up", "k"
+        @cursor = (@cursor - 1) % CHOICES.length
+        [self, nil]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << "What kind of Bubble Tea would you like to order?"
+    lines << ""
+
+    CHOICES.each_with_index do |choice, i|
+      cursor = i == @cursor ? "(\u2022)" : "( )" # (•) or ( )
+      lines << "#{cursor} #{choice}"
+    end
+
+    lines << ""
+    lines << "(press q to quit)"
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+model = Result.new
+Bubbletea.run(model)
+
+if model.choice
+  puts "\n---"
+  puts "You chose #{model.choice}!"
+end

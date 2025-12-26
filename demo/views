@@ -1,0 +1,244 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Views example - demonstrates multiple views/screens with animated progress
+# Ported from bubbletea/examples/views
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class FrameMessage < Bubbletea::Message
+end
+
+class Views
+  include Bubbletea::Model
+
+  PROGRESS_WIDTH = 50
+  TASKS = [
+    "Plant carrots",
+    "Go to the market",
+    "Read something",
+    "See friends",
+  ].freeze
+
+  TASK_MESSAGES = [
+    "Carrot planting?\n\nCool, we'll need %s and %s...",
+    "A trip to the market?\n\nOkay, then we should install %s and %s...",
+    "Reading time?\n\nOkay, cool, then we'll need a library. Yes, an %s.",
+    "It's always good to see friends.\n\nFetching %s and %s...",
+  ].freeze
+
+  TASK_KEYWORDS = [
+    ["libgarden", "vegeutils"],
+    ["marketkit", "libshopping"],
+    ["actual library"],
+    ["social-skills", "conversationutils"],
+  ].freeze
+
+  def initialize
+    @choice = 0
+    @chosen = false
+    @ticks = 10
+    @frames = 0
+    @progress = 0.0
+    @loaded = false
+    @quitting = false
+
+    setup_styles
+  end
+
+  def setup_styles
+    @keyword_style = Lipgloss::Style.new.foreground("211")
+    @subtle_style = Lipgloss::Style.new.foreground("241")
+    @ticks_style = Lipgloss::Style.new.foreground("79")
+    @checkbox_style = Lipgloss::Style.new.foreground("212")
+    @main_style = Lipgloss::Style.new.margin_left(2)
+  end
+
+  def init
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    if message.is_a?(Bubbletea::KeyMessage)
+      case message.to_s
+      when "q", "esc", "ctrl+c"
+        @quitting = true
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    if @chosen
+      update_chosen(message)
+    else
+      update_choices(message)
+    end
+  end
+
+  def view
+    return "\n  See you later!\n\n" if @quitting
+
+    content = @chosen ? chosen_view : choices_view
+    @main_style.render("\n#{content}\n\n")
+  end
+
+  private
+
+  def update_choices(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "j", "down"
+        @choice = [@choice + 1, TASKS.length - 1].min
+        [self, nil]
+      when "k", "up"
+        @choice = [@choice - 1, 0].max
+        [self, nil]
+      when "enter", " ", "space"
+        @chosen = true
+        [self, schedule_frame]
+      else
+        [self, nil]
+      end
+
+    when TickMessage
+      if @ticks.zero?
+        @quitting = true
+        [self, Bubbletea.quit]
+      else
+        @ticks -= 1
+        [self, schedule_tick]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def update_chosen(message)
+    case message
+    when FrameMessage
+      unless @loaded
+        @frames += 1
+        @progress = ease_out_bounce(@frames / 100.0)
+
+        if @progress >= 1
+          @progress = 1
+          @loaded = true
+          @ticks = 3
+          return [self, schedule_tick]
+        end
+
+        return [self, schedule_frame]
+      end
+      [self, nil]
+
+    when TickMessage
+      if @loaded
+        if @ticks.zero?
+          @quitting = true
+          [self, Bubbletea.quit]
+        else
+          @ticks -= 1
+          [self, schedule_tick]
+        end
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def choices_view
+    lines = []
+    lines << "What to do today?\n"
+
+    TASKS.each_with_index do |task, i|
+      lines << checkbox(task, i == @choice)
+    end
+
+    lines << ""
+    lines << "Program quits in #{@ticks_style.render(@ticks.to_s)} seconds"
+    lines << ""
+    lines << (@subtle_style.render("j/k, up/down: select") +
+             @subtle_style.render(" • ") +
+             @subtle_style.render("enter: choose") +
+             @subtle_style.render(" • ") +
+             @subtle_style.render("q, esc: quit"))
+
+    lines.join("\n")
+  end
+
+  def chosen_view
+    keywords = TASK_KEYWORDS[@choice]
+    styled_keywords = keywords.map { |k| @keyword_style.render(k) }
+
+    msg = if @choice == 2
+            format(TASK_MESSAGES[@choice], styled_keywords[0])
+          else
+            format(TASK_MESSAGES[@choice], *styled_keywords)
+          end
+
+    label = if @loaded
+              "Downloaded. Exiting in #{@ticks_style.render(@ticks.to_s)} seconds..."
+            else
+              "Downloading..."
+            end
+
+    "#{msg}\n\n#{label}\n#{progress_bar(@progress)}"
+  end
+
+  def checkbox(label, checked)
+    if checked
+      @checkbox_style.render("[x] #{label}")
+    else
+      "[ ] #{label}"
+    end
+  end
+
+  def progress_bar(percent)
+    full_size = (PROGRESS_WIDTH * percent).round
+    empty_size = PROGRESS_WIDTH - full_size
+
+    full = "█" * full_size
+    empty = @subtle_style.render("░" * empty_size)
+
+    "#{full}#{empty} #{(percent * 100).round}%"
+  end
+
+  def ease_out_bounce(t)
+    if t < 1.0 / 2.75
+      7.5625 * t * t
+    elsif t < 2.0 / 2.75
+      t -= 1.5 / 2.75
+      (7.5625 * t * t) + 0.75
+    elsif t < 2.5 / 2.75
+      t -= 2.25 / 2.75
+      (7.5625 * t * t) + 0.9375
+    else
+      t -= 2.625 / 2.75
+      (7.5625 * t * t) + 0.984375
+    end
+  end
+
+  def schedule_tick
+    Bubbletea.tick(1.0) { TickMessage.new }
+  end
+
+  def schedule_frame
+    Bubbletea.tick(1.0 / 60.0) { FrameMessage.new }
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Views.new)

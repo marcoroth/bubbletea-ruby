@@ -1,0 +1,81 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple program demonstrating a chat interface with textarea and viewport.
+# Ported from bubbletea/examples/chat
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+GAP = "\n\n"
+
+class ChatDemo
+  include Bubbletea::Model
+
+  def initialize
+    @textarea = Bubbles::TextArea.new
+    @textarea.placeholder = "Send a message..."
+    @textarea.prompt = "┃ "
+    @textarea.char_limit = 280
+    @textarea.width = 30
+    @textarea.height = 3
+    @textarea.show_line_numbers = false
+
+    @viewport = Bubbles::Viewport.new(width: 30, height: 5)
+    @viewport.set_content("Welcome to the chat room!\nType a message and press Enter to send.")
+
+    @messages = []
+    @sender_style = Lipgloss::Style.new.foreground("5")
+    @error = nil
+  end
+
+  def init
+    [self, @textarea.focus]
+  end
+
+  def update(message)
+    cmds = []
+
+    case message
+    when Bubbletea::WindowSizeMessage
+      @viewport.width = message.width
+      @textarea.width = message.width
+      @viewport.height = message.height - @textarea.height - Lipgloss.height(GAP)
+
+      if @messages.any?
+        content = Lipgloss::Style.new.width(@viewport.width).render(@messages.join("\n"))
+        @viewport.set_content(content)
+      end
+      @viewport.goto_bottom
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "esc"
+        puts @textarea.value
+        return [self, Bubbletea.quit]
+      when "enter"
+        @messages << "#{@sender_style.render("You: ")}#{@textarea.value}"
+        content = Lipgloss::Style.new.width(@viewport.width).render(@messages.join("\n"))
+        @viewport.set_content(content)
+        @textarea.reset
+        @viewport.goto_bottom
+      end
+    end
+
+    @textarea, ta_cmd = @textarea.update(message)
+    @viewport, vp_cmd = @viewport.update(message)
+
+    cmds << ta_cmd if ta_cmd
+    cmds << vp_cmd if vp_cmd
+
+    [self, Bubbletea.batch(*cmds)]
+  end
+
+  def view
+    "#{@viewport.view}#{GAP}#{@textarea.view}"
+  end
+end
+
+Bubbletea.run(ChatDemo.new)

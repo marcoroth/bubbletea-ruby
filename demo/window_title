@@ -1,0 +1,36 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Window title example - demonstrates setting the terminal window title
+# Ported from bubbletea/examples/set-window-title
+
+require "bundler/setup"
+require "bubbletea"
+
+class WindowTitle
+  include Bubbletea::Model
+
+  def init
+    [self, Bubbletea.set_window_title("Bubble Tea Example")]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      [self, Bubbletea.quit]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    "\nPress any key to quit.\n"
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(WindowTitle.new)

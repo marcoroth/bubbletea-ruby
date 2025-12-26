@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Press keys to see them parsed. Press 'q' or Ctrl+C to exit.
+
+require "bundler/setup"
+require "bubbletea"
+
+puts "Bubbletea Ruby - Input Demo"
+puts "==========================="
+puts Bubbletea.version
+puts
+puts "Press any key to see it parsed. Press 'q' or Ctrl+C to exit."
+puts
+
+unless Bubbletea.tty?
+  puts "Error: This demo requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+program = Bubbletea::Program.new
+
+program.enter_raw_mode
+program.hide_cursor
+program.start_input_reader
+
+begin
+  loop do
+    event = program.poll_event(100)
+
+    next if event.nil?
+
+    message = Bubbletea.parse_event(event)
+
+    case message
+    when Bubbletea::KeyMessage
+      print "Key: #{message.to_s.inspect} (type: #{message.key_type}, alt: #{message.alt})\r\n"
+
+      break if ["q", "ctrl+c"].include?(message.to_s)
+
+    when Bubbletea::MouseMessage
+      action = case message.action
+               when Bubbletea::MouseMessage::ACTION_PRESS then "press"
+               when Bubbletea::MouseMessage::ACTION_RELEASE then "release"
+               when Bubbletea::MouseMessage::ACTION_MOTION then "motion"
+               end
+
+      print "Mouse: button=#{message.button} action=#{action} x=#{message.x} y=#{message.y}\r\n"
+    when Bubbletea::FocusMessage
+      print "Focus: gained\r\n"
+
+    when Bubbletea::BlurMessage
+      print "Focus: lost\r\n"
+
+    else
+      print "Unknown event: #{event.inspect}\r\n"
+    end
+  end
+ensure
+  program.stop_input_reader
+  program.show_cursor
+  program.exit_raw_mode
+
+  puts "\nGoodbye!"
+end

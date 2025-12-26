@@ -1,0 +1,148 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates autocomplete with text input and HTTP fetch.
+# Ported from bubbletea/examples/autocomplete
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+require "net/http"
+require "json"
+
+REPOS_URL = "https://api.github.com/orgs/charmbracelet/repos"
+
+class ReposSuccessMessage < Bubbletea::Message
+  attr_reader :repos
+
+  def initialize(repos)
+    super()
+
+    @repos = repos
+  end
+end
+
+class ReposErrorMessage < Bubbletea::Message
+  attr_reader :error
+
+  def initialize(error)
+    super()
+
+    @error = error
+  end
+end
+
+class AutocompleteDemo
+  include Bubbletea::Model
+
+  def initialize
+    @text_input = Bubbles::TextInput.new
+    @text_input.placeholder = "repository"
+    @text_input.char_limit = 50
+    @text_input.width = 20
+    @text_input.show_suggestions = true
+
+    @prompt_style = Lipgloss::Style.new.foreground("205").bold(true)
+    @text_input.prompt = ""
+
+    @loading = true
+    @error = nil
+
+    @title_style = Lipgloss::Style.new.foreground("229").background("57").bold(true).padding_left(1).padding_right(1)
+    @subtitle_style = Lipgloss::Style.new.foreground("241").italic(true)
+    @input_label_style = Lipgloss::Style.new.foreground("99")
+
+    @help_key_style = Lipgloss::Style.new.foreground("205")
+    @help_desc_style = Lipgloss::Style.new.foreground("241")
+    @help_sep_style = Lipgloss::Style.new.foreground("238")
+
+    @error_style = Lipgloss::Style.new.foreground("196").bold(true)
+    @loading_style = Lipgloss::Style.new.foreground("214").italic(true)
+  end
+
+  def init
+    [self, Bubbletea.batch(fetch_repos, @text_input.focus)]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "enter", "ctrl+c", "esc"
+        return [self, Bubbletea.quit]
+      end
+
+    when ReposSuccessMessage
+      @loading = false
+      suggestions = message.repos.map { |r| r["name"] }
+      @text_input.set_suggestions(suggestions)
+
+    when ReposErrorMessage
+      @loading = false
+      @error = message.error
+    end
+
+    @text_input, cmd = @text_input.update(message)
+    [self, cmd]
+  end
+
+  def view
+    title = @title_style.render(" Charm™ Repository Finder ")
+    subtitle = @subtitle_style.render("Search and autocomplete GitHub repos")
+    prompt = @prompt_style.render("charmbracelet/")
+
+    status = if @error
+               @error_style.render("Error: #{@error}")
+             elsif @loading
+               @loading_style.render("Loading repositories...")
+             else
+               ""
+             end
+
+    help = [
+      [@help_key_style.render("tab"), @help_desc_style.render("complete")],
+      [@help_key_style.render("ctrl+n"), @help_desc_style.render("next")],
+      [@help_key_style.render("ctrl+p"), @help_desc_style.render("prev")],
+      [@help_key_style.render("esc"), @help_desc_style.render("quit")],
+    ].map { |key, desc| "#{key} #{desc}" }.join(@help_sep_style.render(" • "))
+
+    lines = []
+    lines << ""
+    lines << "  #{title}"
+    lines << "  #{subtitle}"
+    lines << ""
+    lines << "  #{prompt}#{@text_input.view}"
+    lines << ""
+    lines << "  #{status}" unless status.empty?
+    lines << "  #{help}"
+    lines << ""
+
+    lines.join("\n")
+  end
+
+  private
+
+  def fetch_repos
+    lambda {
+      begin
+        uri = URI.parse(REPOS_URL)
+        request = Net::HTTP::Get.new(uri)
+        request["Accept"] = "application/vnd.github+json"
+        request["X-GitHub-Api-Version"] = "2022-11-28"
+
+        response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+          http.request(request)
+        end
+
+        repos = JSON.parse(response.body)
+        ReposSuccessMessage.new(repos)
+      rescue StandardError => e
+        ReposErrorMessage.new(e.message)
+      end
+    }
+  end
+end
+
+Bubbletea.run(AutocompleteDemo.new)

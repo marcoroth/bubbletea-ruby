@@ -1,0 +1,198 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Cellbuffer demo - animated ellipse that follows mouse with spring physics
+# Ported from bubbletea/examples/cellbuffer
+
+require "bundler/setup"
+require "bubbletea"
+require "harmonica"
+
+FPS = 60
+FREQUENCY = 7.5
+DAMPING = 0.15
+ASTERISK = "*"
+
+class FrameMessage < Bubbletea::Message
+end
+
+class CellBuffer
+  def initialize
+    @cells = []
+    @stride = 0
+  end
+
+  def init(width, height)
+    return if width.zero?
+
+    @stride = width
+    @cells = Array.new(width * height, " ")
+  end
+
+  def set(x, y)
+    return if x.negative? || y.negative? || x >= width || y >= height
+
+    index = (y * @stride) + x
+    return if index > @cells.length - 1
+
+    @cells[index] = ASTERISK
+  end
+
+  def wipe
+    @cells.fill(" ")
+  end
+
+  def width
+    @stride
+  end
+
+  def height
+    return 0 if @stride.zero?
+
+    h = @cells.length / @stride
+    h += 1 if (@cells.length % @stride) != 0
+    h
+  end
+
+  def ready?
+    @cells.length.positive? && @stride.positive?
+  end
+
+  def to_s
+    return "" unless ready?
+
+    lines = []
+    @cells.each_slice(@stride) do |row|
+      lines << row.join
+    end
+    lines.join("\n")
+  end
+end
+
+class CellBufferDemo
+  include Bubbletea::Model
+
+  def initialize
+    @cells = CellBuffer.new
+    @x = 0.0
+    @y = 0.0
+    @x_velocity = 0.0
+    @y_velocity = 0.0
+    @target_x = 0.0
+    @target_y = 0.0
+
+    @spring = Harmonica::Spring.new(
+      delta_time: Harmonica.fps(FPS),
+      angular_frequency: FREQUENCY,
+      damping_ratio: DAMPING
+    )
+  end
+
+  def init
+    [self, animate]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      [self, Bubbletea.quit]
+
+    when Bubbletea::WindowSizeMessage
+      unless @cells.ready?
+        @target_x = message.width / 2.0
+        @target_y = message.height / 2.0
+        @x = @target_x
+        @y = @target_y
+      end
+
+      @cells.init(message.width, message.height)
+
+      [self, nil]
+    when Bubbletea::MouseMessage
+      return [self, nil] unless @cells.ready?
+
+      @target_x = message.x.to_f
+      @target_y = message.y.to_f
+
+      [self, nil]
+    when FrameMessage
+      return [self, animate] unless @cells.ready?
+
+      @cells.wipe
+      @x, @x_velocity = @spring.update(@x, @x_velocity, @target_x)
+      @y, @y_velocity = @spring.update(@y, @y_velocity, @target_y)
+
+      draw_ellipse(@cells, @x, @y, 16, 8)
+
+      [self, animate]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    @cells.to_s
+  end
+
+  private
+
+  def animate
+    Bubbletea.tick(1.0 / FPS) { FrameMessage.new }
+  end
+
+  def draw_ellipse(cellbuffer, xc, yc, rx, ry)
+    x = 0.0
+    y = ry.to_f
+
+    d1 = (ry * ry) - (rx * rx * ry) + (0.25 * rx * rx)
+    dx = 2.0 * ry * ry * x
+    dy = 2.0 * rx * rx * y
+
+    while dx < dy
+      cellbuffer.set((x + xc).to_i, (y + yc).to_i)
+      cellbuffer.set((-x + xc).to_i, (y + yc).to_i)
+      cellbuffer.set((x + xc).to_i, (-y + yc).to_i)
+      cellbuffer.set((-x + xc).to_i, (-y + yc).to_i)
+
+      x += 1
+      if d1.negative?
+        dx += 2.0 * ry * ry
+        d1 += dx + (ry * ry)
+      else
+        y -= 1
+        dx += 2.0 * ry * ry
+        dy -= 2.0 * rx * rx
+        d1 += dx - dy + (ry * ry)
+      end
+    end
+
+    d2 = ((ry * ry) * ((x + 0.5) * (x + 0.5))) +
+         ((rx * rx) * ((y - 1) * (y - 1))) -
+         (rx * rx * ry * ry)
+
+    while y >= 0
+      cellbuffer.set((x + xc).to_i, (y + yc).to_i)
+      cellbuffer.set((-x + xc).to_i, (y + yc).to_i)
+      cellbuffer.set((x + xc).to_i, (-y + yc).to_i)
+      cellbuffer.set((-x + xc).to_i, (-y + yc).to_i)
+
+      y -= 1
+      if d2.positive?
+        dy -= 2.0 * rx * rx
+        d2 += (rx * rx) - dy
+      else
+        x += 1
+        dx += 2.0 * ry * ry
+        dy -= 2.0 * rx * rx
+        d2 += dx - dy + (rx * rx)
+      end
+    end
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(CellBufferDemo.new, alt_screen: true, mouse_cell_motion: true)

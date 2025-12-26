@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Spinner example demonstrating animation with Lipgloss styling
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class FrameMessage < Bubbletea::Message
+end
+
+class Spinner
+  include Bubbletea::Model
+
+  FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"].freeze
+  TICK_DURATION = 0.08 # 80ms per frame
+
+  def initialize
+    @frame = 0
+    @progress = 0
+    @loading = true
+
+    setup_styles
+  end
+
+  def setup_styles
+    @text_style = Lipgloss::Style.new.foreground("#FAFAFA")
+    @spinner_style = Lipgloss::Style.new.foreground("#FF6B6B").bold(true)
+    @progress_style = Lipgloss::Style.new.foreground("#4ECDC4").bold(true)
+    @complete_style = Lipgloss::Style.new.foreground("#A8E6CF").bold(true)
+    @help_style = Lipgloss::Style.new.foreground("#626262").margin_top(1)
+  end
+
+  def init
+    [self, schedule_frame]
+  end
+
+  def update(message)
+    case message
+    when FrameMessage
+      if @loading
+        @frame = (@frame + 1) % FRAMES.length
+        @progress += 2
+        @loading = false if @progress >= 100
+      end
+
+      [self, @loading ? schedule_frame : nil]
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      when "r"
+        @frame = 0
+        @progress = 0
+        @loading = true
+
+        [self, schedule_frame]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+
+    if @loading
+      spinner = @spinner_style.render(FRAMES[@frame])
+      text = @text_style.render(" Loading...")
+      progress = @progress_style.render(" (#{@progress}%)")
+
+      lines << "  #{spinner}#{text}#{progress}"
+    else
+      checkmark = @complete_style.render("✓")
+      text = @complete_style.render(" Complete!")
+
+      lines << "  #{checkmark}#{text}"
+    end
+
+    lines << ""
+    lines << render_progress_bar
+
+    lines << ""
+    lines << @help_style.render("  r: restart  q: quit")
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def schedule_frame
+    Bubbletea.tick(TICK_DURATION) { FrameMessage.new }
+  end
+
+  def render_progress_bar
+    width = 30
+    filled = (width * @progress / 100.0).to_i
+    empty = width - filled
+
+    bar_style = Lipgloss::Style.new.foreground("#4ECDC4")
+    empty_style = Lipgloss::Style.new.foreground("#3D3D3D")
+
+    bar = bar_style.render("█" * filled) + empty_style.render("░" * empty)
+    "  [#{bar}]"
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(Spinner.new)

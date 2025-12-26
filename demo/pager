@@ -1,0 +1,163 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# An example program demonstrating the viewport component for paging content.
+# Ported from bubbletea/examples/pager
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+CONTENT = <<~CONTENT
+  # The Artichoke
+
+  The artichoke (Cynara cardunculus var. scolymus) is a variety of a species of
+  thistle cultivated as a food. The edible portion of the plant consists of the
+  flower buds before the flowers come into bloom. The budding artichoke
+  flower-head is a cluster of many budding small flowers (an inflorescence),
+  together with many bracts, on an edible base.
+
+  ## History
+
+  The artichoke is mentioned as a garden plant in the 8th century BC by Homer
+  and Hesiod. The naturally occurring variant of the artichoke, the cardoon
+  (Cynara cardunculus), which is native to the Mediterranean area, also has
+  records of use as a food among the ancient Greeks and Romans.
+
+  ## Cultivation
+
+  Today, globe artichoke cultivation is concentrated in the countries bordering
+  the Mediterranean basin. The main European producers are Italy, Spain, and
+  France. In the United States, California provides nearly 100% of the U.S.
+  crop, with about 80% of that coming from Monterey County.
+
+  ## Nutrition
+
+  Artichokes are low in fat while rich in fiber, vitamins, minerals, and
+  antioxidants. Particularly high in folate and vitamins C and K, they also
+  supply important minerals, such as magnesium, phosphorus, potassium, and iron.
+
+  ## Culinary Uses
+
+  Artichokes can be prepared in numerous ways. They can be served hot or cold,
+  as appetizers or incorporated into dishes. When serving, the leaves are often
+  removed one by one and the fleshy base is dipped in sauce before eating.
+
+  The heart (the inner base) is the most prized part and is considered a
+  delicacy. Small artichokes can be eaten whole after the outer leaves and
+  choke are removed.
+
+  ## Fun Facts
+
+  - The artichoke is actually a flower bud
+  - California produces 99.9% of all artichokes in the US
+  - Castroville, California calls itself the "Artichoke Center of the World"
+  - In 1947, Marilyn Monroe was crowned Castroville's first Artichoke Queen
+  - Artichokes are related to sunflowers and daisies
+  - The largest artichoke producer in the world is Italy
+
+  ## Health Benefits
+
+  1. High in antioxidants
+  2. May lower blood sugar levels
+  3. May improve digestive health
+  4. May reduce symptoms of IBS
+  5. May help lower cholesterol
+  6. May help lower blood pressure
+  7. May improve liver health
+
+  ## Varieties
+
+  There are many varieties of artichokes, including:
+
+  - Green Globe
+  - Big Heart
+  - Imperial Star
+  - Violetta
+  - Romanesco
+  - Omaha
+
+  Each variety has its own unique characteristics and flavor profile.
+
+  ---
+
+  Press j/k or ↑/↓ to scroll, q to quit.
+CONTENT
+
+class PagerDemo
+  include Bubbletea::Model
+
+  def initialize(content)
+    @content = content
+    @ready = false
+    @viewport = nil
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "q", "esc"
+        return [self, Bubbletea.quit]
+      end
+
+    when Bubbletea::WindowSizeMessage
+      header_height = Lipgloss.height(header_view)
+      footer_height = Lipgloss.height(footer_view)
+      vertical_margin_height = header_height + footer_height
+
+      if @ready
+        @viewport.width = message.width
+        @viewport.height = message.height - vertical_margin_height
+      else
+        @viewport = Bubbles::Viewport.new(
+          width: message.width,
+          height: message.height - vertical_margin_height
+        )
+        @viewport.set_content(@content)
+        @ready = true
+      end
+    end
+
+    if @viewport
+      @viewport, cmd = @viewport.update(message)
+      return [self, cmd]
+    end
+
+    [self, nil]
+  end
+
+  def view
+    return "\n  Initializing..." unless @ready
+
+    "#{header_view}\n#{@viewport.view}\n#{footer_view}"
+  end
+
+  private
+
+  def header_view
+    @title_style ||= Lipgloss::Style.new.border(:rounded).padding(0, 1, 0, 1)
+
+    title = @title_style.render("Mr. Pager")
+    line_width = @viewport ? [@viewport.width - Lipgloss.width(title), 0].max : 0
+    line = "─" * line_width
+    Lipgloss.join_horizontal(:center, title, line)
+  end
+
+  def footer_view
+    @info_style ||= Lipgloss::Style.new.border(:rounded).padding(0, 1, 0, 1)
+
+    percent = @viewport ? (@viewport.scroll_percent * 100).round : 0
+    info = @info_style.render("#{percent.to_s.rjust(3)}%")
+    line_width = @viewport ? [@viewport.width - Lipgloss.width(info), 0].max : 0
+    line = "─" * line_width
+    Lipgloss.join_horizontal(:center, line, info)
+  end
+end
+
+Bubbletea.run(PagerDemo.new(CONTENT), alt_screen: true, mouse_cell_motion: true)

@@ -1,0 +1,79 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Focus/Blur example - demonstrates terminal focus events
+# Ported from bubbletea/examples/focus-blur
+#
+# Try clicking away from your terminal and back to see focus events!
+
+require "bundler/setup"
+require "bubbletea"
+
+class FocusBlur
+  include Bubbletea::Model
+
+  def initialize
+    @focused = true
+    @focus_count = 0
+    @blur_count = 0
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::FocusMessage
+      @focused = true
+      @focus_count += 1
+
+      [self, nil]
+    when Bubbletea::BlurMessage
+      @focused = false
+      @blur_count += 1
+
+      [self, nil]
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    status = @focused ? "FOCUSED" : "BLURRED"
+    status_color = @focused ? "\e[32m" : "\e[31m"
+    reset = "\e[0m"
+
+    lines = []
+    lines << ""
+    lines << "  Focus/Blur Demo"
+    lines << "  ==============="
+    lines << ""
+    lines << "  Terminal is currently: #{status_color}#{status}#{reset}"
+    lines << ""
+    lines << "  Focus events:  #{@focus_count}"
+    lines << "  Blur events:   #{@blur_count}"
+    lines << ""
+    lines << "  Click outside your terminal window, then click back"
+    lines << "  to see focus/blur events in action!"
+    lines << ""
+    lines << "  Press 'q' to quit"
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(FocusBlur.new, report_focus: true)

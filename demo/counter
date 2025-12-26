@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Counter example demonstrating the Elm Architecture with Bubbletea
+
+require "bundler/setup"
+require "bubbletea"
+
+class Counter
+  include Bubbletea::Model
+
+  attr_reader :count
+
+  def initialize
+    @count = 0
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      when "up", "k"
+        @count += 1
+        [self, nil]
+      when "down", "j"
+        @count -= 1
+        [self, nil]
+      when "r"
+        @count = 0
+        [self, nil]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+    lines << "  Bubbletea Counter Example"
+    lines << "  ========================="
+    lines << ""
+    lines << "  Count: #{@count}"
+    lines << ""
+    lines << "  Controls:"
+    lines << "    ↑/k  Increment"
+    lines << "    ↓/j  Decrement"
+    lines << "    r    Reset"
+    lines << "    q    Quit"
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(Counter.new)

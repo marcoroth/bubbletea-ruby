@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Mouse tracking example - displays mouse coordinates and events
+# Ported from bubbletea/examples/mouse
+
+require "bundler/setup"
+require "bubbletea"
+
+class MouseDemo
+  include Bubbletea::Model
+
+  def initialize
+    @events = []
+    @max_events = 10
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "esc", "ctrl+c"
+        [self, Bubbletea.quit]
+      when "c"
+        @events = []
+        [self, nil]
+      else
+        [self, nil]
+      end
+
+    when Bubbletea::MouseMessage
+      event_str = format_mouse_event(message)
+      @events.unshift(event_str)
+      @events = @events.take(@max_events)
+      [self, nil]
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+    lines << "  Mouse Tracking Demo"
+    lines << "  ==================="
+    lines << ""
+    lines << "  Move your mouse, click, or scroll. Press 'c' to clear, 'q' to quit."
+    lines << ""
+    lines << "  Recent events:"
+
+    if @events.empty?
+      lines << "    (no events yet - move or click your mouse)"
+    else
+      @events.each do |event|
+        lines << "    #{event}"
+      end
+    end
+
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def format_mouse_event(message)
+    action = case message.action
+             when Bubbletea::MouseMessage::ACTION_PRESS then "press"
+             when Bubbletea::MouseMessage::ACTION_RELEASE then "release"
+             when Bubbletea::MouseMessage::ACTION_MOTION then "motion"
+             else "unknown"
+             end
+
+    button = case message.button
+             when Bubbletea::MouseMessage::BUTTON_NONE then "none"
+             when Bubbletea::MouseMessage::BUTTON_LEFT then "left"
+             when Bubbletea::MouseMessage::BUTTON_MIDDLE then "middle"
+             when Bubbletea::MouseMessage::BUTTON_RIGHT then "right"
+             when Bubbletea::MouseMessage::BUTTON_WHEEL_UP then "wheel-up"
+             when Bubbletea::MouseMessage::BUTTON_WHEEL_DOWN then "wheel-down"
+             else "button-#{message.button}"
+             end
+
+    modifiers = []
+    modifiers << "shift" if message.shift
+    modifiers << "alt" if message.alt
+    modifiers << "ctrl" if message.ctrl
+    mod_str = modifiers.empty? ? "" : " [#{modifiers.join("+")}]"
+
+    "(#{message.x}, #{message.y}) #{action} #{button}#{mod_str}"
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+# Enable mouse_all_motion to track all mouse movements
+Bubbletea.run(MouseDemo.new, mouse_all_motion: true)

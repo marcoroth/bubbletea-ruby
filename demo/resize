@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Window resize example demonstrating SIGWINCH handling
+# Try resizing your terminal window to see the size update!
+
+require "bundler/setup"
+require "bubbletea"
+
+class ResizeDemo
+  include Bubbletea::Model
+
+  def initialize
+    @width = 0
+    @height = 0
+    @resize_count = 0
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = message.width
+      @height = message.height
+      @resize_count += 1
+      [self, nil]
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+    lines << "  Window Resize Demo"
+    lines << "  =================="
+    lines << ""
+    lines << "  Terminal size: #{@width} x #{@height}"
+    lines << "  Resize events: #{@resize_count}"
+    lines << ""
+    lines << "  Try resizing your terminal window!"
+    lines << ""
+    lines << "  Press 'q' to quit"
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(ResizeDemo.new)

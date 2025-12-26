@@ -1,0 +1,96 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Timer example demonstrating the command system with ticks
+
+require "bundler/setup"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+  attr_reader :time
+
+  def initialize(time)
+    super()
+
+    @time = time
+  end
+end
+
+class Timer
+  include Bubbletea::Model
+
+  def initialize
+    @seconds = 0
+    @running = false
+    @start_time = nil
+  end
+
+  def init
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    case message
+    when TickMessage
+      @seconds = (Time.now - @start_time).to_i if @running
+      [self, schedule_tick]
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      when " ", "space"
+        toggle_timer
+        [self, nil]
+      when "r"
+        @seconds = 0
+        @start_time = Time.now if @running
+        [self, nil]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    minutes = @seconds / 60
+    secs = @seconds % 60
+    time_str = format("%<minutes>02d:%<secs>02d", minutes: minutes, secs: secs)
+    status = @running ? "Running" : "Paused"
+
+    lines = []
+    lines << ""
+    lines << "  Bubbletea Timer Example"
+    lines << "  ======================="
+    lines << ""
+    lines << "  #{time_str}"
+    lines << "  Status: #{status}"
+    lines << ""
+    lines << "  Controls:"
+    lines << "    space  Start/Stop"
+    lines << "    r      Reset"
+    lines << "    q      Quit"
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def toggle_timer
+    @running = !@running
+    @start_time = Time.now - @seconds if @running
+  end
+
+  def schedule_tick
+    Bubbletea.tick(0.1) { TickMessage.new(Time.now) }
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(Timer.new)

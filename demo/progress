@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Progress bar example - demonstrates an animated progress bar
+# Ported from bubbletea/examples/progress-static
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class Progress
+  include Bubbletea::Model
+
+  MAX_WIDTH = 60
+
+  def initialize
+    @percent = 0.0
+    @width = MAX_WIDTH
+
+    setup_styles
+  end
+
+  def setup_styles
+    @help_style = Lipgloss::Style.new.foreground("241")
+    @percent_style = Lipgloss::Style.new.foreground("212").bold(true)
+    @gradient_start = "#FF7CCB"
+    @gradient_end = "#FDFF8C"
+  end
+
+  def init
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = [message.width - 10, MAX_WIDTH].min
+      @width = [@width, 20].max
+
+      [self, nil]
+    when TickMessage
+      @percent += 0.02
+
+      if @percent >= 1.0
+        @percent = 1.0
+        [self, Bubbletea.quit]
+      else
+        [self, schedule_tick]
+      end
+    when Bubbletea::KeyMessage
+      [self, Bubbletea.quit]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    bar = render_progress_bar(@percent, @width)
+    percent_text = @percent_style.render("#{(@percent * 100).round}%")
+    lines = []
+
+    lines << ""
+    lines << "  #{bar} #{percent_text}"
+    lines << ""
+    lines << @help_style.render("  Press any key to quit")
+    lines << ""
+
+    lines.join("\n")
+  end
+
+  private
+
+  def schedule_tick
+    Bubbletea.tick(0.05) { TickMessage.new }
+  end
+
+  def render_progress_bar(percent, width)
+    filled = (width * percent).round
+    empty = width - filled
+
+    filled_chars = (0...filled).map do |i|
+      color = Lipgloss::ColorBlend.blend(@gradient_start, @gradient_end, i.to_f / width)
+      style = Lipgloss::Style.new.foreground(color)
+      style.render("█")
+    end.join
+
+    empty_style = Lipgloss::Style.new.foreground("238")
+    empty_chars = empty_style.render("░" * empty)
+
+    "#{filled_chars}#{empty_chars}"
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Progress.new)

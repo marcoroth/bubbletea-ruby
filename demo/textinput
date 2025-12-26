@@ -1,0 +1,49 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple text input demo.
+# Ported from bubbletea/examples/textinput
+
+require "bundler/setup"
+require "bubbletea"
+require "bubbles"
+
+class TextInputDemo
+  include Bubbletea::Model
+
+  def initialize
+    @text_input = Bubbles::TextInput.new
+    @text_input.placeholder = "Pikachu"
+    @text_input.char_limit = 156
+    @text_input.width = 20
+  end
+
+  def init
+    [self, @text_input.focus]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "enter", "ctrl+c", "esc"
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    @text_input, cmd = @text_input.update(message)
+    [self, cmd]
+  end
+
+  def view
+    <<~VIEW
+      What's your favorite Pokémon?
+
+      #{@text_input.view}
+
+      (esc to quit)
+    VIEW
+  end
+end
+
+Bubbletea.run(TextInputDemo.new)

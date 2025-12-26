@@ -1,0 +1,419 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A fancy list demo with filtering, status messages, and item management.
+# Ported from bubbletea/examples/list-fancy
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+class RandomItemGenerator
+  TITLES = [
+    "Artichoke", "Baking Flour", "Bananas", "Barley", "Bean Sprouts",
+    "Bitter Melon", "Black Cod", "Blood Orange", "Brown Sugar", "Cashew Apple",
+    "Cashews", "Cat Food", "Coconut Milk", "Cucumber", "Curry Paste",
+    "Currywurst", "Dill", "Dragonfruit", "Dried Shrimp", "Eggs",
+    "Fish Cake", "Furikake", "Garlic", "Gherkin", "Ginger",
+    "Granulated Sugar", "Grapefruit", "Green Onion", "Hazelnuts", "Heavy Cream",
+    "Honey Dew", "Horseradish", "Jicama", "Kohlrabi", "Leeks",
+    "Lentils", "Licorice Root", "Meyer Lemons", "Milk", "Molasses",
+    "Muesli", "Nectarine", "Niagamo Root", "Nopal", "Nutella",
+    "Oat Milk", "Oatmeal", "Olives", "Papaya", "Party Gherkin",
+    "Peppers", "Persian Lemons", "Pickle", "Pineapple", "Plantains",
+    "Pocky", "Powdered Sugar", "Quince", "Radish", "Ramps",
+    "Star Anise", "Sweet Potato", "Tamarind", "Unsalted Butter", "Watermelon",
+    "Weißwurst", "Yams", "Yeast", "Yuzu", "Snow Peas"
+  ].freeze
+
+  DESCRIPTIONS = [
+    "A little weird", "Bold flavor", "Can't get enough", "Delectable",
+    "Expensive", "Expired", "Exquisite", "Fresh", "Gimme", "In season",
+    "Kind of spicy", "Looks fresh", "Looks good to me", "Maybe not",
+    "My favorite", "Oh my", "On sale", "Organic", "Questionable",
+    "Really fresh", "Refreshing", "Salty", "Scrumptious", "Slightly sweet",
+    "Smells great", "Tasty", "Too ripe", "At last", "What?", "Wow",
+    "Yum", "Maybe", "Sure, why not?"
+  ].freeze
+
+  def initialize
+    @titles = TITLES.shuffle
+    @descriptions = DESCRIPTIONS.shuffle
+    @title_index = 0
+    @desc_index = 0
+  end
+
+  def next_item
+    item = {
+      title: @titles[@title_index],
+      description: @descriptions[@desc_index],
+    }
+
+    @title_index = (@title_index + 1) % @titles.length
+    @desc_index = (@desc_index + 1) % @descriptions.length
+
+    item
+  end
+end
+
+class ListFancyDemo
+  include Bubbletea::Model
+
+  def initialize
+    @generator = RandomItemGenerator.new
+    @items = 24.times.map { @generator.next_item }
+    @selected = 0
+    @offset = 0
+    @width = 80
+    @height = 24
+
+    @show_title = true
+    @show_status_bar = true
+    @show_pagination = true
+    @show_help = true
+    @show_descriptions = true
+
+    @status_message = ""
+    @filter_mode = false
+    @filter_text = ""
+    @filtered_items = @items.dup
+
+    setup_styles
+  end
+
+  def setup_styles
+    @app_style = Lipgloss::Style.new.padding(1)
+    @title_style = Lipgloss::Style.new.foreground("#FFFDF5").background("#25A065").padding_left(1).padding_right(1)
+    @normal_title_style = Lipgloss::Style.new.foreground("#dddddd").padding_left(2)
+    @normal_desc_style = Lipgloss::Style.new.foreground("#777777").padding_left(2)
+
+    @selected_title_style = Lipgloss::Style.new.foreground("#EE6FF8").border_left(true).border_style(:thick).border_foreground("#AD58B4").padding_left(1)
+    @selected_desc_style = Lipgloss::Style.new.foreground("#AD58B4").border_left(true).border_style(:thick).border_foreground("#AD58B4").padding_left(1)
+
+    @status_style = Lipgloss::Style.new.foreground("#04B575")
+
+    @pagination_style = Lipgloss::Style.new.foreground("#626262")
+    @active_dot = Lipgloss::Style.new.foreground("#FFFFFF").render("•")
+    @inactive_dot = Lipgloss::Style.new.foreground("#626262").render("•")
+
+    @help_style = Lipgloss::Style.new.foreground("#626262")
+    @help_key_style = Lipgloss::Style.new.foreground("#909090")
+
+    @filter_prompt_style = Lipgloss::Style.new.foreground("#FFFB00")
+    @filter_cursor_style = Lipgloss::Style.new.foreground("#EE6FF8")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = message.width
+      @height = message.height
+      return [self, nil]
+
+    when StatusTimeoutMessage
+      @status_message = ""
+      return [self, nil]
+
+    when Bubbletea::KeyMessage
+      return handle_filter_key(message) if @filter_mode
+
+      case message.to_s
+      when "q", "ctrl+c"
+        return [self, Bubbletea.quit]
+      when "up", "k"
+        select_prev
+      when "down", "j"
+        select_next
+      when "home", "g"
+        @selected = 0
+        update_offset
+      when "end", "G"
+        @selected = [@filtered_items.length - 1, 0].max
+        update_offset
+      when "enter"
+        if (item = selected_item)
+          return [self, show_status("You chose #{item[:title]}")]
+        end
+      when "x", "backspace"
+        return handle_delete
+      when "a"
+        return handle_add
+      when "/"
+        @filter_mode = true
+        @filter_text = ""
+      when "esc"
+        unless @filter_text.empty?
+          @filter_text = ""
+          reset_filter
+        end
+      when "T"
+        @show_title = !@show_title
+      when "S"
+        @show_status_bar = !@show_status_bar
+      when "P"
+        @show_pagination = !@show_pagination
+      when "H"
+        @show_help = !@show_help
+      when "D"
+        @show_descriptions = !@show_descriptions
+      end
+    end
+
+    [self, nil]
+  end
+
+  def view
+    lines = []
+
+    if @filter_mode
+      lines << "  #{@filter_prompt_style.render("Filter: ")}#{@filter_text}#{@filter_cursor_style.render("█")}"
+      lines << ""
+      filtered_count = @items.length - @filtered_items.length
+      lines << "  #{@pagination_style.render("#{@filtered_items.length} items • #{filtered_count} filtered")}"
+      lines << ""
+    elsif @show_title
+      # Normal mode or active filter: show title
+      title_line = "  #{@title_style.render(" Groceries ")}"
+
+      title_line += "  #{@status_style.render(@status_message)}" if @show_status_bar && !@status_message.empty?
+
+      lines << title_line
+      lines << ""
+
+      if @filter_text.empty?
+        item_count = "#{@filtered_items.length} items"
+        lines << "  #{@pagination_style.render(item_count)}"
+      else
+        lines << "  #{@filter_prompt_style.render("\"#{@filter_text}\"")}#{@pagination_style.render(" #{@filtered_items.length} items")}"
+      end
+      lines << ""
+    end
+
+    visible = visible_item_count
+    end_index = [@offset + visible, @filtered_items.length].min
+
+    if @filtered_items.empty?
+      lines << @normal_desc_style.render("No items match your filter")
+    else
+      items_rendered = 0
+
+      (@offset...end_index).each_with_index do |i, index|
+        item = @filtered_items[i]
+        is_selected = i == @selected && !@filter_mode
+
+        lines << "" if index.positive?
+
+        title = highlight_matches(item[:title])
+
+        if is_selected
+          lines << @selected_title_style.render(title)
+          lines << @selected_desc_style.render(item[:description]) if @show_descriptions
+        else
+          lines << @normal_title_style.render(title)
+          lines << @normal_desc_style.render(item[:description]) if @show_descriptions
+        end
+        items_rendered += 1
+      end
+
+      lines_per_item = @show_descriptions ? 3 : 2 # title + desc + blank (or title + blank)
+      total_item_lines = (visible * lines_per_item) - 1 # -1 because no blank after last
+      current_lines = (items_rendered * lines_per_item) - 1
+
+      (total_item_lines - current_lines).times { lines << "" }
+    end
+
+    if @show_pagination && @filtered_items.length > visible
+      total_pages = (@filtered_items.length.to_f / visible).ceil
+      current_page = (@selected.to_f / visible).floor + 1
+      dots = (1..total_pages).map { |p| p == current_page ? @active_dot : @inactive_dot }.join
+
+      lines << ""
+      lines << @pagination_style.render("  #{dots}")
+    end
+
+    if @show_help
+      help_bindings = if @filter_mode
+                        [
+                          ["enter", "apply filter"],
+                          ["esc", "cancel"],
+                        ]
+                      else
+                        [
+                          ["↑/k", "up"],
+                          ["↓/j", "down"],
+                          ["enter", "choose"],
+                          ["x", "delete"],
+                          ["/", "filter"],
+                          ["esc", "clear filter"],
+                          ["q", "quit"],
+                        ]
+                      end
+
+      help_text = help_bindings.map do |key, desc|
+        "#{@help_key_style.render(key)} #{@help_style.render(desc)}"
+      end.join(@help_style.render(" • "))
+      lines << ""
+      lines << "  #{help_text}"
+    end
+
+    @app_style.render(lines.join("\n"))
+  end
+
+  private
+
+  class StatusTimeoutMessage < Bubbletea::Message; end
+
+  def handle_filter_key(message)
+    case message.to_s
+    when "enter", "down"
+      @filter_mode = false
+      apply_filter
+    when "esc"
+      @filter_mode = false
+      @filter_text = ""
+      reset_filter
+    when "backspace"
+      @filter_text = @filter_text[0...-1]
+      apply_filter
+    else
+      char = message.to_s
+      if char.length == 1 && char.match?(/[a-zA-Z0-9 ]/)
+        @filter_text += char
+        apply_filter
+      end
+    end
+
+    [self, nil]
+  end
+
+  def apply_filter
+    if @filter_text.empty?
+      reset_filter
+    else
+      query = @filter_text.downcase
+
+      @filtered_items = @items.select do |item|
+        item[:title].downcase.include?(query)
+      end
+
+      @selected = 0
+      @offset = 0
+    end
+  end
+
+  def reset_filter
+    @filtered_items = @items.dup
+    @selected = 0
+    @offset = 0
+  end
+
+  def highlight_matches(text)
+    return text if @filter_text.empty?
+
+    query = @filter_text.downcase
+    lower_text = text.downcase
+    match_index = lower_text.index(query)
+
+    return text unless match_index
+
+    before = text[0...match_index]
+    match = text[match_index, query.length]
+    after = text[(match_index + query.length)..]
+
+    # Underline the matching portion
+    "#{before}\e[4m#{match}\e[24m#{after}"
+  end
+
+  def handle_delete
+    return [self, nil] if @filtered_items.empty?
+
+    item = selected_item
+    return [self, nil] unless item
+
+    @items.delete(item)
+    @filtered_items.delete(item)
+
+    @selected = [@selected, @filtered_items.length - 1].min
+    @selected = 0 if @selected.negative?
+    update_offset
+
+    [self, show_status("Deleted #{item[:title]}")]
+  end
+
+  def handle_add
+    new_item = @generator.next_item
+    @items.unshift(new_item)
+
+    @filtered_items.unshift(new_item) if @filter_text.empty? || new_item[:title].downcase.include?(@filter_text.downcase)
+
+    @selected = 0
+    @offset = 0
+
+    [self, show_status("Added #{new_item[:title]}")]
+  end
+
+  def show_status(message)
+    @status_message = message
+
+    Bubbletea.tick(2.0) { StatusTimeoutMessage.new }
+  end
+
+  def selected_item
+    @filtered_items[@selected]
+  end
+
+  def select_next
+    return if @filtered_items.empty?
+
+    visible = visible_item_count
+
+    return if @selected >= @filtered_items.length - 1
+
+    @selected += 1
+
+    return unless @selected >= @offset + visible
+
+    @offset += visible
+  end
+
+  def select_prev
+    return if @filtered_items.empty?
+
+    return if @selected <= 0
+
+    visible = visible_item_count
+    @selected -= 1
+
+    return unless @selected < @offset
+
+    @offset = (@selected / visible) * visible
+  end
+
+  def update_offset
+    visible = visible_item_count
+    @offset = (@selected / visible) * visible
+    max_offset = [@filtered_items.length - visible, 0].max
+    @offset = @offset.clamp(0, max_offset)
+  end
+
+  def visible_item_count
+    available = @height - 4
+
+    # Both filter mode and title take 4 lines
+    available -= 4 if @filter_mode || @show_title
+
+    available -= 2 if @show_pagination
+    available -= 2 if @show_help
+
+    lines_per_item = @show_descriptions ? 2 : 1
+
+    [(available + 1) / (lines_per_item + 1), 1].max
+  end
+end
+
+Bubbletea.run(ListFancyDemo.new, alt_screen: true)

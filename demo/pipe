@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# An example illustrating how to pipe in data to a Bubble Tea application.
+# Ported from bubbletea/examples/pipe
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+class PipeDemo
+  include Bubbletea::Model
+
+  def initialize(initial_value)
+    @input = Bubbles::TextInput.new
+    @input.prompt = ""
+    @input.width = 48
+    @input.set_value(initial_value)
+    @input.cursor_end
+  end
+
+  def init
+    [self, @input.focus]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "esc", "enter"
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    @input, cmd = @input.update(message)
+    [self, cmd]
+  end
+
+  def view
+    "\nYou piped in: #{@input.view}\n\nPress ^C to exit"
+  end
+end
+
+if $stdin.tty?
+  puts "Try piping in some text."
+  puts "Example: echo 'Hello World' | #{$PROGRAM_NAME}"
+  exit 1
+end
+
+input = $stdin.read.strip
+
+$stdin.reopen("/dev/tty")
+
+Bubbletea.run(PipeDemo.new(input))

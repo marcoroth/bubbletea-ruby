@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple program demonstrating the textarea component.
+# Ported from bubbletea/examples/textarea
+
+require "bundler/setup"
+require "bubbletea"
+require "bubbles"
+
+class TextAreaDemo
+  include Bubbletea::Model
+
+  def initialize
+    @textarea = Bubbles::TextArea.new
+    @textarea.placeholder = "Once upon a time..."
+    @error = nil
+  end
+
+  def init
+    [self, @textarea.focus]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "esc"
+        @textarea.blur if @textarea.focused?
+      when "ctrl+c"
+        return [self, Bubbletea.quit]
+      else
+        @textarea.focus unless @textarea.focused?
+      end
+    end
+
+    @textarea, cmd = @textarea.update(message)
+    [self, cmd]
+  end
+
+  def view
+    "Tell me a story.\n\n#{@textarea.view}\n\n(ctrl+c to quit)\n\n"
+  end
+end
+
+Bubbletea.run(TextAreaDemo.new)

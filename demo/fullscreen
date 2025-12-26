@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Fullscreen example - opens alternate screen buffer and counts down
+# Ported from bubbletea/examples/fullscreen
+
+require "bundler/setup"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class Fullscreen
+  include Bubbletea::Model
+
+  def initialize(seconds = 5)
+    @seconds = seconds
+  end
+
+  def init
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    case message
+    when TickMessage
+      @seconds -= 1
+      if @seconds <= 0
+        [self, Bubbletea.quit]
+      else
+        [self, schedule_tick]
+      end
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "esc", "ctrl+c"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    "\n\n     Hi. This program will exit in #{@seconds} seconds..."
+  end
+
+  private
+
+  def schedule_tick
+    Bubbletea.tick(1.0) { TickMessage.new }
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Fullscreen.new(5), alt_screen: true)

@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates the help component for showing keybindings.
+# Ported from bubbletea/examples/help
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+class HelpDemo
+  include Bubbletea::Model
+
+  def initialize
+    @help = Bubbles::Help.new
+
+    @keys = {
+      up: Bubbles::Key::Binding.new(
+        keys: ["up", "k"],
+        help_key: "↑/k",
+        help_desc: "move up"
+      ),
+      down: Bubbles::Key::Binding.new(
+        keys: ["down", "j"],
+        help_key: "↓/j",
+        help_desc: "move down"
+      ),
+      left: Bubbles::Key::Binding.new(
+        keys: ["left", "h"],
+        help_key: "←/h",
+        help_desc: "move left"
+      ),
+      right: Bubbles::Key::Binding.new(
+        keys: ["right", "l"],
+        help_key: "→/l",
+        help_desc: "move right"
+      ),
+      help: Bubbles::Key::Binding.new(
+        keys: ["?"],
+        help_key: "?",
+        help_desc: "toggle help"
+      ),
+      quit: Bubbles::Key::Binding.new(
+        keys: ["q", "esc", "ctrl+c"],
+        help_key: "q",
+        help_desc: "quit"
+      ),
+    }
+
+    @last_key = ""
+    @quitting = false
+    @input_style = Lipgloss::Style.new.foreground("#FF75B7")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @help.width = message.width
+
+    when Bubbletea::KeyMessage
+      message.to_s
+
+      if Bubbles::Key.matches?(message, @keys[:up])
+        @last_key = "↑"
+      elsif Bubbles::Key.matches?(message, @keys[:down])
+        @last_key = "↓"
+      elsif Bubbles::Key.matches?(message, @keys[:left])
+        @last_key = "←"
+      elsif Bubbles::Key.matches?(message, @keys[:right])
+        @last_key = "→"
+      elsif Bubbles::Key.matches?(message, @keys[:help])
+        @help.show_all = !@help.show_all
+      elsif Bubbles::Key.matches?(message, @keys[:quit])
+        @quitting = true
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    [self, nil]
+  end
+
+  def view
+    return "Bye!\n" if @quitting
+
+    status = if @last_key.empty?
+               "Waiting for input..."
+             else
+               "You chose: #{@input_style.render(@last_key)}"
+             end
+
+    help_view = @help.view(@keys)
+    height = [8 - status.count("\n") - help_view.count("\n"), 0].max
+
+    "\n#{status}#{"\n" * height}#{help_view}"
+  end
+end
+
+Bubbletea.run(HelpDemo.new)

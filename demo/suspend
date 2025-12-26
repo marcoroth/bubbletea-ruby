@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates suspend (Ctrl+Z) and resume functionality.
+# Ported from bubbletea/examples/suspend
+
+require "bundler/setup"
+require "bubbletea"
+
+class SuspendDemo
+  include Bubbletea::Model
+
+  def initialize
+    @quitting = false
+    @suspending = false
+    @resumed = false
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::ResumeMessage
+      @suspending = false
+      @resumed = true
+
+      [self, nil]
+    when Bubbletea::KeyMessage
+      @resumed = false
+
+      case message.to_s
+      when "q", "esc", "ctrl+c"
+        @quitting = true
+        [self, Bubbletea.quit]
+      when "ctrl+z"
+        @suspending = true
+        [self, Bubbletea.sequence(
+          Bubbletea.puts("[Suspending... type 'fg' to resume]"),
+          Bubbletea.suspend
+        )]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    return "" if @suspending || @quitting
+
+    lines = []
+    lines << ""
+    lines << "[Resumed!]" if @resumed
+    lines << "Press ctrl-z to suspend, ctrl+c to quit, q, or esc to exit"
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+Bubbletea.run(SuspendDemo.new)

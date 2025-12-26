@@ -1,0 +1,135 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates a TUI that can also run in daemon mode without renderer.
+# Run with -d flag for daemon mode, or pipe output to see daemon behavior.
+# Ported from bubbletea/examples/tui-daemon-combo
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+require "optparse"
+require "logger"
+
+SHOW_LAST_RESULTS = 5
+
+EMOJIS = ["🍦", "🧋", "🍡", "🤠", "👾", "😭", "🦊", "🐯", "🦆", "🥨", "🎏", "🍔", "🍒", "🍥", "🎮", "📦", "🦁", "🐶", "🐸", "🍕", "🥐", "🧲", "🚒", "🥇", "🏆", "🌽"].freeze
+
+class ProcessFinishedMessage < Bubbletea::Message
+  attr_reader :duration
+
+  def initialize(duration)
+    super
+
+    @duration = duration
+  end
+end
+
+Result = Struct.new(:emoji, :duration, keyword_init: true)
+
+class TuiDaemonComboDemo
+  include Bubbletea::Model
+
+  attr_reader :logger
+
+  def initialize(logger:)
+    @logger = logger
+    @quitting = false
+    @results = Array.new(SHOW_LAST_RESULTS) { Result.new(emoji: nil, duration: 0) }
+
+    @spinner = Bubbles::Spinner.new
+    @spinner.style = Lipgloss::Style.new.foreground("206")
+
+    @help_style = Lipgloss::Style.new.foreground("241")
+    @main_style = Lipgloss::Style.new.margin_left(1)
+  end
+
+  def init
+    @logger.info("Starting work...")
+
+    [self, Bubbletea.batch(@spinner.tick, run_pretend_process)]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      @quitting = true
+
+      [self, Bubbletea.quit]
+    when Bubbles::Spinner::TickMessage
+      @spinner, cmd = @spinner.update(message)
+
+      [self, cmd]
+    when ProcessFinishedMessage
+      res = Result.new(emoji: EMOJIS.sample, duration: message.duration)
+      @logger.info("#{res.emoji} Job finished in #{format_duration(res.duration)}")
+      @results = @results[1..] + [res]
+
+      [self, run_pretend_process]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    s = "\n#{@spinner.view} Doing some work...\n\n"
+
+    @results.each do |res|
+      s += if res.duration.zero?
+             "........................\n"
+           else
+             "#{res.emoji} Job finished in #{format_duration(res.duration)}\n"
+           end
+    end
+
+    s += @help_style.render("\nPress any key to exit\n")
+    s += "\n" if @quitting
+
+    @main_style.render(s)
+  end
+
+  private
+
+  def run_pretend_process
+    lambda {
+      pause = rand(0.1..1.0)
+      sleep(pause)
+      ProcessFinishedMessage.new(pause)
+    }
+  end
+
+  def format_duration(seconds)
+    ms = (seconds * 1000).round
+    "#{ms}ms"
+  end
+end
+
+daemon_mode = false
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{$PROGRAM_NAME} [options]"
+
+  opts.on("-d", "--daemon", "Run as a daemon (without TUI)") do
+    daemon_mode = true
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
+
+is_tty = $stdout.tty?
+
+options = {}
+
+if daemon_mode || !is_tty
+  options[:without_renderer] = true
+  logger = Logger.new($stdout)
+  logger.formatter = proc { |_severity, _datetime, _progname, msg| "#{msg}\n" }
+else
+  logger = Logger.new(File::NULL)
+end
+
+Bubbletea.run(TuiDaemonComboDemo.new(logger: logger), **options)

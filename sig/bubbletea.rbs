@@ -1,0 +1,3 @@
+module Bubbletea
+  VERSION: String
+end

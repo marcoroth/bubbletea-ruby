@@ -1,0 +1,109 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple program that makes a GET request and prints the response status.
+# Ported from bubbletea/examples/http
+
+require "bundler/setup"
+require "bubbletea"
+require "net/http"
+require "uri"
+
+URL = "https://charm.sh/"
+
+class StatusMessage < Bubbletea::Message
+  attr_reader :status
+
+  def initialize(status)
+    super()
+
+    @status = status
+  end
+end
+
+class ErrorMessage < Bubbletea::Message
+  attr_reader :error
+
+  def initialize(error)
+    super()
+
+    @error = error
+  end
+end
+
+class HttpDemo
+  include Bubbletea::Model
+
+  def initialize
+    @status = nil
+    @error = nil
+  end
+
+  def init
+    [self, check_server]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    when StatusMessage
+      @status = message.status
+      [self, Bubbletea.quit]
+
+    when ErrorMessage
+      @error = message.error
+      [self, nil]
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    s = "Checking #{URL}..."
+
+    if @error
+      s += "something went wrong: #{@error}"
+    elsif @status
+      s += "#{@status} #{status_text(@status)}"
+    end
+
+    "#{s}\n"
+  end
+
+  private
+
+  def check_server
+    lambda do
+      uri = URI.parse(URL)
+      response = Net::HTTP.get_response(uri)
+      StatusMessage.new(response.code.to_i)
+    rescue StandardError => e
+      ErrorMessage.new(e.message)
+    end
+  end
+
+  def status_text(code)
+    case code
+    when 200 then "OK"
+    when 201 then "Created"
+    when 301 then "Moved Permanently"
+    when 302 then "Found"
+    when 400 then "Bad Request"
+    when 401 then "Unauthorized"
+    when 403 then "Forbidden"
+    when 404 then "Not Found"
+    when 500 then "Internal Server Error"
+    else "Unknown"
+    end
+  end
+end
+
+Bubbletea.run(HttpDemo.new)

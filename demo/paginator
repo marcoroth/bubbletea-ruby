@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple program demonstrating the paginator component.
+# Ported from bubbletea/examples/paginator
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+class PaginatorDemo
+  include Bubbletea::Model
+
+  def initialize
+    @items = (1..100).map { |i| "Item #{i}" }
+
+    @paginator = Bubbles::Paginator.new(
+      type: :dots,
+      per_page: 10
+    )
+    @paginator.set_total_pages(@items.length)
+
+    @active_dot_style = Lipgloss::Style.new.foreground("252")
+    @inactive_dot_style = Lipgloss::Style.new.foreground("238")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "esc", "ctrl+c"
+        return [self, Bubbletea.quit]
+      when "left", "h"
+        @paginator.prev_page
+      when "right", "l"
+        @paginator.next_page
+      end
+    end
+
+    [self, nil]
+  end
+
+  def view
+    lines = ["\n  Paginator Example\n"]
+
+    start_index, end_index = @paginator.slice_bounds(@items.length)
+    @items[start_index...end_index].each do |item|
+      lines << "  • #{item}\n"
+    end
+
+    lines << "\n  #{@paginator.view}"
+    lines << "\n\n  h/l ←/→ page • q: quit\n"
+
+    lines.join
+  end
+end
+
+Bubbletea.run(PaginatorDemo.new)

@@ -1,0 +1,132 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates split pane editors with multiple textareas.
+# Ported from bubbletea/examples/split-editors
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+INITIAL_INPUTS = 2
+MAX_INPUTS = 6
+MIN_INPUTS = 1
+HELP_HEIGHT = 5
+
+class SplitEditorsDemo
+  include Bubbletea::Model
+
+  def initialize
+    @width = 80
+    @height = 24
+    @focus = 0
+    @inputs = []
+
+    @focused_border_style = Lipgloss::Style.new.border(:rounded).border_foreground("62")
+    @blurred_border_style = Lipgloss::Style.new.border(:rounded).border_foreground("236")
+    @help_style = Lipgloss::Style.new.foreground("241")
+
+    INITIAL_INPUTS.times do
+      @inputs << new_textarea
+    end
+  end
+
+  def init
+    [self, @inputs[@focus].focus]
+  end
+
+  def update(message)
+    cmds = []
+
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "esc", "ctrl+c"
+        @inputs.each(&:blur)
+        return [self, Bubbletea.quit]
+      when "tab"
+        @inputs[@focus].blur
+        @focus = (@focus + 1) % @inputs.length
+        cmds << @inputs[@focus].focus
+      when "shift+tab"
+        @inputs[@focus].blur
+        @focus -= 1
+        @focus = @inputs.length - 1 if @focus.negative?
+        cmds << @inputs[@focus].focus
+      when "ctrl+n"
+        if @inputs.length < MAX_INPUTS
+          @inputs << new_textarea
+          size_inputs
+        end
+      when "ctrl+w"
+        if @inputs.length > MIN_INPUTS
+          @inputs.pop
+          @focus = @inputs.length - 1 if @focus > @inputs.length - 1
+        end
+      end
+
+    when Bubbletea::WindowSizeMessage
+      @height = message.height
+      @width = message.width
+    end
+
+    size_inputs
+
+    @inputs.each do |input|
+      _, cmd = input.update(message)
+      cmds << cmd if cmd
+    end
+
+    [self, Bubbletea.batch(*cmds)]
+  end
+
+  def view
+    views = @inputs.each_with_index.map do |input, index|
+      style = index == @focus ? @focused_border_style : @blurred_border_style
+      style.render(input.view)
+    end
+
+    help = build_help
+
+    "#{Lipgloss.join_horizontal(:top, *views)}\n\n#{help}"
+  end
+
+  private
+
+  def new_textarea
+    textarea = Bubbles::TextArea.new
+    textarea.placeholder = "Type something"
+    textarea.prompt = ""
+    textarea.show_line_numbers = true
+    textarea.blur
+    textarea
+  end
+
+  def size_inputs
+    border_width = 2
+    available_width = @width - (@inputs.length * border_width)
+    base_width = available_width / @inputs.length
+    extra = available_width % @inputs.length
+
+    input_height = @height - HELP_HEIGHT - 2
+
+    @inputs.each_with_index do |input, index|
+      input.width = base_width + (index < extra ? 1 : 0)
+      input.height = input_height
+    end
+  end
+
+  def build_help
+    parts = []
+    parts << "tab: next"
+    parts << "shift+tab: prev"
+    parts << "ctrl+n: add an editor" if @inputs.length < MAX_INPUTS
+    parts << "ctrl+w: remove an editor" if @inputs.length > MIN_INPUTS
+    parts << "esc: quit"
+
+    @help_style.render(parts.join(" • "))
+  end
+end
+
+Bubbletea.run(SplitEditorsDemo.new, alt_screen: true)

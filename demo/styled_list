@@ -1,0 +1,124 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Styled list example demonstrating Lipgloss integration
+# Run with: demo/styled_list
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class StyledList
+  include Bubbletea::Model
+
+  CHOICES = [
+    { name: "Ramen", desc: "A delicious bowl of noodles" },
+    { name: "Tom Yum Soup", desc: "A spicy Thai classic" },
+    { name: "Hamburger", desc: "An American favorite" },
+    { name: "Pad Thai", desc: "A stir-fried noodle dish" },
+    { name: "Falafel", desc: "Crispy chickpea fritters" },
+  ].freeze
+
+  def initialize
+    @cursor = 0
+    @selected = nil
+    @quitting = false
+
+    setup_styles
+  end
+
+  def setup_styles
+    @title_style = Lipgloss::Style.new.bold(true).foreground("#FAFAFA").background("#7D56F4").padding_left(1).padding_right(1).margin_bottom(1)
+    @item_style = Lipgloss::Style.new
+    @selected_item_style = Lipgloss::Style.new.foreground("#7D56F4").bold(true)
+    @cursor_style = Lipgloss::Style.new.foreground("#7D56F4").bold(true)
+    @desc_style = Lipgloss::Style.new.foreground("#626262")
+    @selected_desc_style = Lipgloss::Style.new.foreground("#7D56F4").italic(true)
+    @help_style = Lipgloss::Style.new.foreground("#626262").margin_top(1).padding_left(2)
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        @quitting = true
+
+        [self, Bubbletea.quit]
+      when "up", "k"
+        @cursor = (@cursor - 1) % CHOICES.length
+
+        [self, nil]
+      when "down", "j"
+        @cursor = (@cursor + 1) % CHOICES.length
+
+        [self, nil]
+      when "enter", " ", "space"
+        @selected = @cursor
+        @quitting = true
+
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    return final_view if @quitting && @selected
+
+    lines = []
+
+    lines << ""
+    lines << @title_style.render("  What do you want for dinner?  ")
+    lines << ""
+
+    CHOICES.each_with_index do |choice, i|
+      is_selected = i == @cursor
+
+      if is_selected
+        cursor = @cursor_style.render(">")
+        name = @selected_item_style.render(choice[:name])
+        desc = @selected_desc_style.render(choice[:desc])
+        lines << "   #{cursor} #{name}"
+      else
+        name = @item_style.render(choice[:name])
+        desc = @desc_style.render(choice[:desc])
+        lines << "     #{name}"
+      end
+      lines << "     #{desc}"
+    end
+
+    lines << ""
+    lines << @help_style.render("j/k: navigate  enter: select  q: quit")
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def final_view
+    choice = CHOICES[@selected]
+    result_style = Lipgloss::Style.new.foreground("#7D56F4").bold(true)
+    lines = []
+
+    lines << ""
+    lines << "  You chose: #{result_style.render(choice[:name])}"
+    lines << ""
+
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(StyledList.new)

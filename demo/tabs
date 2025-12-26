@@ -1,0 +1,121 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Tabs example - demonstrates tab-based navigation
+# Ported from bubbletea/examples/tabs
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class Tabs
+  include Bubbletea::Model
+
+  TABS = ["Lip Gloss", "Blush", "Eye Shadow", "Mascara", "Foundation"].freeze
+
+  TAB_CONTENT = {
+    "Lip Gloss" => "Lip gloss is a cosmetic product used to make\nthe lips appear glossy and sometimes colorful.\n\nIt's perfect for a subtle, shiny look!",
+    "Blush" => "Blush is a cosmetic product typically used\nto color the cheeks.\n\nIt adds a healthy, rosy glow to your face!",
+    "Eye Shadow" => "Eye shadow is a cosmetic applied to the\neyelids to add color and dimension.\n\nCreate stunning eye looks with various shades!",
+    "Mascara" => "Mascara is a cosmetic used to darken,\nthicken, lengthen, or define eyelashes.\n\nMake your lashes pop!",
+    "Foundation" => "Foundation is a skin-colored makeup applied\nto the face to create an even skin tone.\n\nThe base for a flawless makeup look!",
+  }.freeze
+
+  def initialize
+    @active_tab = 0
+
+    setup_styles
+  end
+
+  def setup_styles
+    @highlight_color = "#7D56F4"
+    @inactive_tab_style = Lipgloss::Style.new.border(:rounded).border_foreground(@highlight_color).padding_left(1).padding_right(1).foreground("252")
+    @active_tab_style = Lipgloss::Style.new.border(:rounded).border_foreground(@highlight_color).padding_left(1).padding_right(1).bold(true).foreground(@highlight_color)
+    @content_style = Lipgloss::Style.new.border(:rounded).border_foreground(@highlight_color).padding(1)
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::MouseMessage
+      if message.press? && message.button.zero?
+        clicked_tab = tab_at_position(message.x)
+        @active_tab = clicked_tab if clicked_tab
+      end
+
+      [self, nil]
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        [self, Bubbletea.quit]
+      when "right", "l", "tab"
+        @active_tab = [@active_tab + 1, TABS.length - 1].min
+
+        [self, nil]
+      when "left", "h", "shift+tab"
+        @active_tab = [@active_tab - 1, 0].max
+
+        [self, nil]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+
+    rendered_tabs = TABS.each_with_index.map do |tab, i|
+      style = i == @active_tab ? @active_tab_style : @inactive_tab_style
+      style.render(tab)
+    end
+
+    tab_row = Lipgloss.join_horizontal(:top, *rendered_tabs)
+
+    indented_tabs = tab_row.lines.map { |line| "  #{line}" }.join
+    lines << indented_tabs
+    lines << ""
+
+    content = TAB_CONTENT[TABS[@active_tab]]
+    rendered_content = @content_style.render(content)
+    indented_content = rendered_content.lines.map { |line| "  #{line}" }.join
+    lines << indented_content
+
+    lines << ""
+    lines << @help_style.render("  ←/h  prev tab  •  →/l  next tab  •  click tab  •  q  quit")
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def tab_at_position(x)
+    x -= 2
+    return nil if x.negative?
+
+    current_x = 0
+
+    TABS.each_with_index do |tab, i|
+      tab_width = tab.length + 4
+      return i if x >= current_x && x < current_x + tab_width
+
+      current_x += tab_width
+    end
+
+    nil
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Tabs.new, mouse_all_motion: true)

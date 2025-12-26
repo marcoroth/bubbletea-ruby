@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Debounce example - demonstrates how to debounce commands
+# Ported from bubbletea/examples/debounce
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "bubbletea"
+
+DEBOUNCE_DURATION = 1.0
+
+class ExitMessage < Bubbletea::Message
+  attr_reader :tag
+
+  def initialize(tag)
+    super()
+
+    @tag = tag
+  end
+end
+
+class Debounce
+  include Bubbletea::Model
+
+  def initialize
+    @tag = 0
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      @tag += 1
+      current_tag = @tag
+
+      [self, Bubbletea.tick(DEBOUNCE_DURATION) { ExitMessage.new(current_tag) }]
+    when ExitMessage
+      if message.tag == @tag
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    "Key presses: #{@tag}\nTo exit press any key, then wait for one second without pressing anything."
+  end
+end
+
+Bubbletea.run(Debounce.new)

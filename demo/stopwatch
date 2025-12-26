@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Stopwatch example - demonstrates a start/stop/reset stopwatch
+# Ported from bubbletea/examples/stopwatch
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class Stopwatch
+  include Bubbletea::Model
+
+  def initialize
+    @elapsed = 0.0
+    @running = true
+    @last_tick = Time.now
+
+    setup_styles
+  end
+
+  def setup_styles
+    @time_style = Lipgloss::Style.new.foreground("205").bold(true)
+    @label_style = Lipgloss::Style.new.foreground("240")
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    case message
+    when TickMessage
+      if @running
+        now = Time.now
+        @elapsed += now - @last_tick
+        @last_tick = now
+      end
+
+      [self, schedule_tick]
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      when "s", " ", "space"
+        if @running
+          @running = false
+        else
+          @running = true
+          @last_tick = Time.now
+        end
+
+        [self, nil]
+      when "r"
+        @elapsed = 0.0
+        @last_tick = Time.now
+
+        [self, nil]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    time_str = format_elapsed(@elapsed)
+    formatted_time = @time_style.render(time_str)
+    status = @running ? "running" : "stopped"
+    lines = []
+
+    lines << ""
+    lines << "  #{@label_style.render("Elapsed:")} #{formatted_time}"
+    lines << "  #{@label_style.render("Status:")}  #{status}"
+    lines << ""
+    lines << @help_style.render("  s/space: start/stop • r: reset • q: quit")
+    lines << ""
+
+    lines.join("\n")
+  end
+
+  private
+
+  def schedule_tick
+    Bubbletea.tick(0.01) { TickMessage.new }
+  end
+
+  def format_elapsed(seconds)
+    total_ms = (seconds * 1000).to_i
+    ms = total_ms % 1000
+    total_secs = total_ms / 1000
+    secs = total_secs % 60
+    mins = (total_secs / 60) % 60
+    hours = total_secs / 3600
+
+    if hours.positive?
+      format("%<hours>d:%<mins>02d:%<secs>02d.%<ms>03d", hours: hours, mins: mins, secs: secs, ms: ms)
+    elsif mins.positive?
+      format("%<mins>d:%<secs>02d.%<ms>03d", mins: mins, secs: secs, ms: ms)
+    else
+      format("%<secs>d.%<ms>03d", secs: secs, ms: ms)
+    end
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Stopwatch.new)

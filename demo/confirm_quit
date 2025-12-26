@@ -1,0 +1,153 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Confirm quit example - demonstrates preventing accidental quit
+# Inspired by bubbletea/examples/prevent-quit
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class ConfirmQuit
+  include Bubbletea::Model
+
+  def initialize
+    @text = ""
+    @has_changes = false
+    @confirming = false
+    @saved_text = ""
+
+    setup_styles
+  end
+
+  def setup_styles
+    @prompt_style = Lipgloss::Style.new.padding(1).border(:rounded).border_foreground("170")
+    @choice_style = Lipgloss::Style.new.foreground("241").padding_left(1)
+    @saved_style = Lipgloss::Style.new.foreground("170")
+    @help_style = Lipgloss::Style.new.foreground("241")
+    @cursor_style = Lipgloss::Style.new.foreground("212")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    if @confirming
+      update_confirm(message)
+    else
+      update_editor(message)
+    end
+  end
+
+  def view
+    if @confirming
+      confirm_view
+    else
+      editor_view
+    end
+  end
+
+  private
+
+  def update_editor(message)
+    case message
+    when Bubbletea::KeyMessage
+      @saved_text = ""
+
+      case message.to_s
+      when "ctrl+w"
+        @saved_text = "Saved!"
+        @has_changes = false
+
+        [self, nil]
+      when "ctrl+c", "esc", "q"
+        if @has_changes
+          @confirming = true
+
+          [self, nil]
+        else
+          [self, Bubbletea.quit]
+        end
+      when "backspace"
+        @text = @text[0...-1] unless @text.empty?
+        @has_changes = true unless @text.empty?
+
+        [self, nil]
+      when "enter"
+        @text += "\n"
+        @has_changes = true
+
+        [self, nil]
+      else
+        if message.runes? && !message.to_s.empty?
+          @text += message.to_s
+          @has_changes = true
+        end
+
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def update_confirm(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "y", "Y"
+        [self, Bubbletea.quit]
+      when "n", "N", "esc"
+        @confirming = false
+        [self, nil]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def editor_view
+    cursor = @cursor_style.render("█")
+    text_display = @text.empty? ? @help_style.render("(type something...)") : @text
+
+    lines = []
+    lines << ""
+    lines << "  Simple Text Editor"
+    lines << "  ==================="
+    lines << ""
+    lines << "  #{text_display}#{cursor}"
+    lines << ""
+
+    lines << if @saved_text == ""
+               "  #{@help_style.render("ctrl+w: save • q/esc: quit")}"
+             else
+               "  #{@saved_style.render(@saved_text)}"
+             end
+
+    lines << ""
+    lines.join("\n")
+  end
+
+  def confirm_view
+    prompt = "You have unsaved changes. Quit without saving?"
+    choices = @choice_style.render("[y/n]")
+    lines = []
+    lines << ""
+    lines << @prompt_style.render("  #{prompt} #{choices}  ")
+    lines << ""
+
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(ConfirmQuit.new)

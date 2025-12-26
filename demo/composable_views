@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates composable views with timer and spinner components.
+# Ported from bubbletea/examples/composable-views
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+SPINNERS = [
+  Bubbles::Spinners::LINE,
+  Bubbles::Spinners::DOT,
+  Bubbles::Spinners::MINI_DOT,
+  Bubbles::Spinners::JUMP,
+  Bubbles::Spinners::PULSE,
+  Bubbles::Spinners::POINTS,
+  Bubbles::Spinners::GLOBE,
+  Bubbles::Spinners::MOON,
+  Bubbles::Spinners::MONKEY,
+].freeze
+
+class ComposableViewsDemo
+  include Bubbletea::Model
+
+  TIMER_VIEW = 0
+  SPINNER_VIEW = 1
+  DEFAULT_TIME = 60
+
+  def initialize
+    @state = TIMER_VIEW
+    @timer = Bubbles::Timer.new(DEFAULT_TIME)
+    @spinner = Bubbles::Spinner.new(spinner: SPINNERS[0])
+    @spinner_index = 0
+
+    @model_style = Lipgloss::Style.new.width(15).height(5).align_horizontal(:center).align_vertical(:center).border(:hidden)
+    @focused_model_style = Lipgloss::Style.new.width(15).height(5).align_horizontal(:center).align_vertical(:center).border(:normal).border_foreground("69")
+    @spinner_style = Lipgloss::Style.new.foreground("69")
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, Bubbletea.batch(@timer.init, @spinner.tick)]
+  end
+
+  def update(message)
+    commands = []
+
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "q"
+        return [self, Bubbletea.quit]
+      when "tab"
+        @state = @state == TIMER_VIEW ? SPINNER_VIEW : TIMER_VIEW
+      when "n"
+        if @state == TIMER_VIEW
+          @timer = Bubbles::Timer.new(DEFAULT_TIME)
+          commands << @timer.init
+        else
+          next_spinner
+          reset_spinner
+          commands << @spinner.tick
+        end
+      end
+    end
+
+    @timer, timer_command = @timer.update(message)
+    commands << timer_command if timer_command
+
+    @spinner, spinner_command = @spinner.update(message)
+    commands << spinner_command if spinner_command
+
+    [self, Bubbletea.batch(*commands)]
+  end
+
+  def view
+    timer_view = @timer.view.rjust(4)
+    spinner_view = @spinner.view
+
+    s = if @state == TIMER_VIEW
+          Lipgloss.join_horizontal(
+            :top,
+            @focused_model_style.render(timer_view), @model_style.render(spinner_view)
+          )
+        else
+          Lipgloss.join_horizontal(
+            :top,
+            @model_style.render(timer_view), @focused_model_style.render(spinner_view)
+          )
+        end
+
+    model_name = @state == TIMER_VIEW ? "timer" : "spinner"
+    s += @help_style.render("\ntab: focus next • n: new #{model_name} • q: exit\n")
+
+    s
+  end
+
+  private
+
+  def next_spinner
+    @spinner_index = (@spinner_index + 1) % SPINNERS.length
+  end
+
+  def reset_spinner
+    @spinner = Bubbles::Spinner.new(spinner: SPINNERS[@spinner_index])
+    @spinner.style = @spinner_style
+  end
+end
+
+Bubbletea.run(ComposableViewsDemo.new)

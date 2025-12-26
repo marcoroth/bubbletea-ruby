@@ -1,0 +1,100 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates rendering markdown with glamour in a scrollable viewport.
+# Ported from bubbletea/examples/glamour
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "glamour"
+require "bubbletea"
+
+CONTENT = <<~MARKDOWN
+  # Today's Menu
+
+  ## Appetizers
+
+  | Name        | Price | Notes                           |
+  | ---         | ---   | ---                             |
+  | Tsukemono   | $2    | Just an appetizer               |
+  | Tomato Soup | $4    | Made with San Marzano tomatoes  |
+  | Okonomiyaki | $4    | Takes a few minutes to make     |
+  | Curry       | $3    | We can add squash if you'd like |
+
+  ## Seasonal Dishes
+
+  | Name                 | Price | Notes              |
+  | ---                  | ---   | ---                |
+  | Steamed bitter melon | $2    | Not so bitter      |
+  | Takoyaki             | $3    | Fun to eat         |
+  | Winter squash        | $3    | Today it's pumpkin |
+
+  ## Desserts
+
+  | Name         | Price | Notes                 |
+  | ---          | ---   | ---                   |
+  | Dorayaki     | $4    | Looks good on rabbits |
+  | Banana Split | $5    | A classic             |
+  | Cream Puff   | $3    | Pretty creamy!        |
+
+  All our dishes are made in-house by Karen, our chef. Most of our ingredients
+  are from our garden or the fish market down the street.
+
+  Some famous people that have eaten here lately:
+
+  * [x] Rene Redzepi
+  * [x] David Chang
+  * [ ] Jiro Ono (maybe some day)
+
+  Bon appetit!
+MARKDOWN
+
+class GlamourDemo
+  include Bubbletea::Model
+
+  def initialize
+    width = 78
+
+    @viewport = Bubbles::Viewport.new(width: width, height: 20)
+    @viewport.style = Lipgloss::Style.new.border(:rounded).border_foreground("62").padding_right(2)
+
+    glamour_gutter = 2
+    horizontal_frame_size = 4
+    glamour_render_width = width - horizontal_frame_size - glamour_gutter
+
+    rendered = Glamour.render(CONTENT, style: "auto", width: glamour_render_width)
+    @viewport.set_content(rendered)
+
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    @viewport, cmd = @viewport.update(message)
+    [self, cmd]
+  end
+
+  def view
+    @viewport.view + help_view
+  end
+
+  private
+
+  def help_view
+    @help_style.render("\n  up/down: Navigate  q: Quit\n")
+  end
+end
+
+Bubbletea.run(GlamourDemo.new)

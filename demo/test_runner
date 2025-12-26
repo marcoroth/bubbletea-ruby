@@ -1,0 +1,392 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Test Runner example - simulates a test suite running with spinners and status
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class TestRunner
+  include Bubbletea::Model
+
+  SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"].freeze
+
+  TESTS = [
+    { name: "test_user_authentication", file: "test/models/user_test.rb", duration: 0.03 },
+    { name: "test_user_validation", file: "test/models/user_test.rb", duration: 0.02 },
+    { name: "test_password_encryption", file: "test/models/user_test.rb", duration: 0.04 },
+    { name: "test_session_creation", file: "test/controllers/sessions_test.rb", duration: 0.02 },
+    { name: "test_session_expiry", file: "test/controllers/sessions_test.rb", duration: 0.03, skip: true },
+    { name: "test_api_authentication", file: "test/controllers/api_test.rb", duration: 0.03 },
+    { name: "test_api_rate_limiting", file: "test/controllers/api_test.rb", duration: 0.15 },
+    { name: "test_api_versioning", file: "test/controllers/api_test.rb", duration: 0.02, todo: "implement v2 API" },
+    { name: "test_database_connection", file: "test/integration/database_test.rb", duration: 0.45 },
+    { name: "test_database_transactions", file: "test/integration/database_test.rb", duration: 0.03, skip: true },
+    { name: "test_cache_invalidation", file: "test/integration/cache_test.rb", duration: 0.04 },
+    { name: "test_cache_expiry", file: "test/integration/cache_test.rb", duration: 0.02, todo: "add TTL support" },
+    { name: "test_email_delivery", file: "test/integration/mailer_test.rb", duration: 0.03 },
+    { name: "test_background_jobs", file: "test/jobs/worker_test.rb", duration: 0.04 },
+    { name: "test_job_retry", file: "test/jobs/worker_test.rb", duration: 0.02 },
+    { name: "test_scheduled_tasks", file: "test/jobs/scheduler_test.rb", duration: 0.02 },
+  ].freeze
+
+  STATUS_PENDING = :pending
+  STATUS_RUNNING = :running
+  STATUS_PASSED = :passed
+  STATUS_FAILED = :failed
+  STATUS_SKIPPED = :skipped
+  STATUS_TODO = :todo
+
+  MAX_PARALLEL = 2
+
+  def initialize
+    @tests = TESTS.map do |test|
+      {
+        name: test[:name],
+        file: test[:file],
+        duration: test[:duration],
+        skip: test[:skip] || false,
+        todo: test[:todo],
+        status: STATUS_PENDING,
+        started_at: nil,
+        elapsed: 0.0,
+      }
+    end
+
+    @frame = 0
+    @done = false
+    @start_time = nil
+    @end_time = nil
+
+    setup_styles
+  end
+
+  def setup_styles
+    @title_style = Lipgloss::Style.new.bold(true).foreground("99")
+    @run_badge_style = Lipgloss::Style.new.foreground("255").background("99").bold(true)
+    @spinner_style = Lipgloss::Style.new.foreground("205")
+    @pass_style = Lipgloss::Style.new.foreground("2").bold(true)
+    @fail_style = Lipgloss::Style.new.foreground("203")
+    @fail_badge_style = Lipgloss::Style.new.foreground("255").background("196").bold(true)
+    @pending_style = Lipgloss::Style.new.foreground("243")
+    @skip_style = Lipgloss::Style.new.foreground("220")
+    @todo_style = Lipgloss::Style.new.foreground("248")
+    @file_style = Lipgloss::Style.new.foreground("250")
+    @muted_style = Lipgloss::Style.new.foreground("241")
+    @time_style = Lipgloss::Style.new.foreground("241")
+    @time_fast_style = Lipgloss::Style.new.foreground("2")
+    @time_fast_unit_style = Lipgloss::Style.new.foreground("28")
+    @time_medium_style = Lipgloss::Style.new.foreground("221")
+    @time_medium_unit_style = Lipgloss::Style.new.foreground("178")
+    @time_slow_style = Lipgloss::Style.new.foreground("204")
+    @time_slow_unit_style = Lipgloss::Style.new.foreground("167")
+    @summary_style = Lipgloss::Style.new.bold(true)
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    @start_time = Time.now
+    start_next_tests
+    [self, schedule_tick]
+  end
+
+  def update(message)
+    case message
+    when TickMessage
+      return [self, nil] if @done
+
+      @frame = (@frame + 1) % SPINNER_FRAMES.length
+
+      running_tests = @tests.select { |t| t[:status] == STATUS_RUNNING }
+      running_tests.each do |test|
+        test[:elapsed] = Time.now - test[:started_at]
+
+        if test[:elapsed] >= test[:duration]
+          test[:status] = should_fail?(test[:name]) ? STATUS_FAILED : STATUS_PASSED
+        end
+      end
+
+      start_next_tests
+
+      done_statuses = [STATUS_PASSED, STATUS_FAILED, STATUS_SKIPPED, STATUS_TODO]
+
+      if @tests.all? { |t| done_statuses.include?(t[:status]) }
+        @done = true
+        @end_time = Time.now
+        [self, nil]
+      else
+        [self, schedule_tick]
+      end
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      when "r"
+        reset_tests
+        [self, schedule_tick]
+      when "f"
+        rerun_failed_tests
+        [self, schedule_tick]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    lines = []
+    lines << ""
+
+    if @done
+      has_failures = @tests.any? { |t| t[:status] == STATUS_FAILED }
+      lines << if has_failures
+                 " #{@fail_badge_style.render(" FAIL ")} #{@file_style.render("Tests failed")}"
+               else
+                 " #{@pass_style.render("PASS")} #{@file_style.render("All tests passed")}"
+               end
+    else
+      lines << " #{@run_badge_style.render(" RUN ")} #{@file_style.render("Running tests...")}"
+    end
+
+    lines << ""
+
+    grouped = @tests.group_by { |t| t[:file] }
+
+    grouped.each do |file, tests_in_file|
+      done_statuses = [STATUS_PASSED, STATUS_FAILED, STATUS_SKIPPED, STATUS_TODO]
+      passed_tests = tests_in_file.select { |t| t[:status] == STATUS_PASSED }
+      failed_tests = tests_in_file.select { |t| t[:status] == STATUS_FAILED }
+      skipped_tests = tests_in_file.select { |t| t[:status] == STATUS_SKIPPED }
+      todo_tests = tests_in_file.select { |t| t[:status] == STATUS_TODO }
+
+      all_done = tests_in_file.all? { |t| done_statuses.include?(t[:status]) }
+      any_failed = failed_tests.any?
+      any_running = tests_in_file.any? { |t| t[:status] == STATUS_RUNNING }
+      all_pending = tests_in_file.all? { |t| t[:status] == STATUS_PENDING }
+      total_time = tests_in_file.sum { |t| t[:elapsed] }
+
+      if all_pending
+        lines << "  #{@pending_style.render("○")} #{@pending_style.render(file)} #{@muted_style.render("(#{tests_in_file.length} tests)")}"
+      elsif all_done && !any_failed
+        parts = []
+        parts << @muted_style.render("#{passed_tests.length} tests") if passed_tests.any?
+        parts << @skip_style.render("#{skipped_tests.length} skipped") if skipped_tests.any?
+        parts << @todo_style.render("#{todo_tests.length} todo") if todo_tests.any?
+
+        summary = parts.join(@muted_style.render(" | "))
+        icon = passed_tests.any? ? @pass_style.render("✓") : @skip_style.render("⊘")
+
+        lines << "  #{icon} #{@file_style.render(file)} #{@muted_style.render("(")}#{summary}#{@muted_style.render(")")} #{format_time_ms(total_time)}"
+      elsif all_done && any_failed
+        parts = []
+        parts << @muted_style.render("#{passed_tests.length + failed_tests.length} tests")
+        parts << @fail_style.render("#{failed_tests.length} failed")
+        parts << @skip_style.render("#{skipped_tests.length} skipped") if skipped_tests.any?
+        parts << @todo_style.render("#{todo_tests.length} todo") if todo_tests.any?
+
+        summary = parts.join(@muted_style.render(" | "))
+        lines << "  #{@fail_style.render("✗")} #{@file_style.render(file)} #{@muted_style.render("(")}#{summary}#{@muted_style.render(")")} #{format_time_ms(total_time)}"
+
+        failed_tests.each do |test|
+          lines << "    #{@fail_style.render("✗")} #{@fail_style.render(test[:name])} #{format_time_ms(test[:elapsed])}"
+        end
+      else
+        has_running = any_running
+        icon = has_running ? @spinner_style.render(SPINNER_FRAMES[@frame]) : @pending_style.render("○")
+        lines << "  #{icon} #{@file_style.render(file)}"
+
+        tests_in_file.each do |test|
+          status_icon = case test[:status]
+                        when STATUS_PENDING
+                          @pending_style.render("○")
+                        when STATUS_RUNNING
+                          @spinner_style.render(SPINNER_FRAMES[@frame])
+                        when STATUS_PASSED
+                          @pass_style.render("✓")
+                        when STATUS_FAILED
+                          @fail_style.render("✗")
+                        when STATUS_SKIPPED
+                          @skip_style.render("⊘")
+                        when STATUS_TODO
+                          @todo_style.render("◌")
+                        end
+
+          time_string = if [STATUS_RUNNING, STATUS_PASSED, STATUS_FAILED].include?(test[:status])
+                          format_time_ms(test[:elapsed])
+                        else
+                          ""
+                        end
+
+          name_style = case test[:status]
+                       when STATUS_PENDING then @pending_style
+                       when STATUS_RUNNING then Lipgloss::Style.new.foreground("255")
+                       when STATUS_PASSED then @pass_style
+                       when STATUS_FAILED then @fail_style
+                       when STATUS_SKIPPED then @skip_style
+                       when STATUS_TODO then @todo_style
+                       end
+
+          extra = test[:todo] ? @time_style.render(" # #{test[:todo]}") : ""
+          lines << "    #{status_icon} #{name_style.render(test[:name])} #{time_string}#{extra}"
+        end
+      end
+    end
+
+    lines << ""
+
+    if @done
+      passed = @tests.count { |t| t[:status] == STATUS_PASSED }
+      failed = @tests.count { |t| t[:status] == STATUS_FAILED }
+      skipped = @tests.count { |t| t[:status] == STATUS_SKIPPED }
+      todo = @tests.count { |t| t[:status] == STATUS_TODO }
+      total_time = @end_time - @start_time
+      total_tests = @tests.length
+
+      grouped = @tests.group_by { |t| t[:file] }
+      total_files = grouped.length
+      passed_files = grouped.count do |_, tests|
+        tests.all? do |t|
+          [STATUS_PASSED, STATUS_SKIPPED, STATUS_TODO].include?(t[:status])
+        end
+      end
+
+      files_parts = []
+
+      if failed.positive?
+        failed_file_count = grouped.count { |_, tests| tests.any? { |t| t[:status] == STATUS_FAILED } }
+        files_parts << @fail_style.render("#{failed_file_count} failed")
+      end
+
+      files_parts << @pass_style.render("#{passed_files} passed")
+      lines << "  #{@muted_style.render("Test Files")}  #{files_parts.join(@muted_style.render(" | "))} #{@muted_style.render("(#{total_files})")}"
+
+      tests_parts = []
+      tests_parts << @fail_style.render("#{failed} failed") if failed.positive?
+      tests_parts << @pass_style.render("#{passed} passed")
+      tests_parts << @skip_style.render("#{skipped} skipped") if skipped.positive?
+      tests_parts << @muted_style.render("#{todo} todo") if todo.positive?
+
+      lines << "       #{@muted_style.render("Tests")}  #{tests_parts.join(@muted_style.render(" | "))} #{@muted_style.render("(#{total_tests})")}"
+      lines << "    #{@muted_style.render("Start at")}  #{@start_time.strftime("%H:%M:%S")}"
+      lines << "    #{@muted_style.render("Duration")}  #{format("%.2f", total_time)}s"
+
+      lines << ""
+
+      lines << if failed.positive?
+                 @help_style.render("  r: rerun all • f: rerun failed • q: quit")
+               else
+                 @help_style.render("  r: rerun all • q: quit")
+               end
+    else
+      done_statuses = [STATUS_PASSED, STATUS_FAILED, STATUS_SKIPPED, STATUS_TODO]
+      completed = @tests.count { |t| done_statuses.include?(t[:status]) }
+
+      lines << @summary_style.render("  Progress: #{completed}/#{@tests.length}")
+      lines << ""
+      lines << @help_style.render("  q: quit")
+    end
+
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def schedule_tick
+    Bubbletea.tick(0.05) { TickMessage.new }
+  end
+
+  def format_time_ms(seconds)
+    ms = (seconds * 1000).to_i
+
+    if ms < 100
+      @time_fast_style.render(ms.to_s) + @time_fast_unit_style.render("ms")
+    elsif ms < 300
+      @time_medium_style.render(ms.to_s) + @time_medium_unit_style.render("ms")
+    else
+      @time_slow_style.render(ms.to_s) + @time_slow_unit_style.render("ms")
+    end
+  end
+
+  def start_next_tests
+    grouped = @tests.group_by { |t| t[:file] }
+
+    running_files = grouped.count do |_file, tests|
+      tests.any? { |t| t[:status] == STATUS_RUNNING }
+    end
+
+    grouped.each_value do |tests_in_file|
+      break if running_files >= MAX_PARALLEL
+
+      next if tests_in_file.any? { |t| t[:status] == STATUS_RUNNING }
+
+      done_statuses = [STATUS_PASSED, STATUS_FAILED, STATUS_SKIPPED, STATUS_TODO]
+      next if tests_in_file.all? { |t| done_statuses.include?(t[:status]) }
+
+      tests_in_file.each do |test|
+        next unless test[:status] == STATUS_PENDING
+
+        if test[:skip]
+          test[:status] = STATUS_SKIPPED
+        elsif test[:todo]
+          test[:status] = STATUS_TODO
+        else
+          test[:status] = STATUS_RUNNING
+          test[:started_at] = Time.now
+          test[:elapsed] = 0.0
+          running_files += 1
+          break
+        end
+      end
+    end
+  end
+
+  def should_fail?(name)
+    ["test_api_rate_limiting", "test_cache_invalidation"].include?(name)
+  end
+
+  def reset_tests
+    @tests.each do |test|
+      test[:status] = STATUS_PENDING
+      test[:started_at] = nil
+      test[:elapsed] = 0.0
+    end
+
+    @done = false
+    @start_time = Time.now
+    @end_time = nil
+
+    start_next_tests
+  end
+
+  def rerun_failed_tests
+    @tests.each do |test|
+      next unless test[:status] == STATUS_FAILED
+
+      test[:status] = STATUS_PENDING
+      test[:started_at] = nil
+      test[:elapsed] = 0.0
+    end
+
+    @done = false
+    @start_time = Time.now
+    @end_time = nil
+
+    start_next_tests
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(TestRunner.new)

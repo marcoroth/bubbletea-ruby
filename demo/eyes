@@ -1,0 +1,151 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Eyes example - demonstrates animated blinking eyes
+# Ported from bubbletea/examples/eyes
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class Eyes
+  include Bubbletea::Model
+
+  EYE_WIDTH = 15
+  EYE_HEIGHT = 12
+  EYE_SPACING = 40
+
+  BLINK_FRAMES = 20
+  OPEN_TIME_MIN = 1.0
+  OPEN_TIME_MAX = 4.0
+
+  EYE_CHAR = "\u25cf" # ●
+  BG_CHAR = " "
+
+  def initialize
+    @width = 80
+    @height = 24
+    @is_blinking = false
+    @blink_state = 0
+    @last_blink = Time.now
+    @open_time = random_open_time
+
+    update_eye_positions
+    setup_styles
+  end
+
+  def setup_styles
+    @style = Lipgloss::Style.new.foreground("#F0F0F0")
+  end
+
+  def init
+    [self, Bubbletea.batch(schedule_tick, Bubbletea.enter_alt_screen)]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = message.width
+      @height = message.height
+      update_eye_positions
+      [self, nil]
+
+    when TickMessage
+      current_time = Time.now
+
+      if !@is_blinking && (current_time - @last_blink) >= @open_time
+        @is_blinking = true
+        @blink_state = 0
+      end
+
+      if @is_blinking
+        @blink_state += 1
+
+        if @blink_state >= BLINK_FRAMES
+          @is_blinking = false
+          @last_blink = current_time
+          @open_time = random_open_time
+          @open_time = 0.3 if rand(10).zero?
+        end
+      end
+
+      [self, schedule_tick]
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    canvas = Array.new(@height) { Array.new(@width, BG_CHAR) }
+
+    current_height = EYE_HEIGHT
+    if @is_blinking
+      if @blink_state < BLINK_FRAMES / 2
+        blink_progress = @blink_state.to_f / (BLINK_FRAMES / 2)
+        blink_progress = 1.0 - (blink_progress * blink_progress)
+      else
+        blink_progress = (@blink_state - (BLINK_FRAMES / 2)).to_f / (BLINK_FRAMES / 2)
+        blink_progress *= (2.0 - blink_progress)
+      end
+
+      current_height = [1, (EYE_HEIGHT * blink_progress).to_i].max
+    end
+
+    @eye_positions.each do |eye_x|
+      draw_ellipse(canvas, eye_x, @eye_y, EYE_WIDTH, current_height)
+    end
+
+    output = canvas.map(&:join).join("\n")
+
+    @style.render(output)
+  end
+
+  private
+
+  def update_eye_positions
+    start_x = (@width - EYE_SPACING) / 2
+    @eye_y = @height / 2
+    @eye_positions = [start_x, start_x + EYE_SPACING]
+  end
+
+  def schedule_tick
+    Bubbletea.tick(0.05) { TickMessage.new }
+  end
+
+  def random_open_time
+    OPEN_TIME_MIN + (rand * (OPEN_TIME_MAX - OPEN_TIME_MIN))
+  end
+
+  def draw_ellipse(canvas, x0, y0, rx, ry)
+    (-ry..ry).each do |y|
+      next if ry.zero?
+
+      width = (rx * Math.sqrt(1.0 - ((y.to_f / ry)**2))).to_i
+
+      (-width..width).each do |x|
+        canvas_x = x0 + x
+        canvas_y = y0 + y
+
+        canvas[canvas_y][canvas_x] = EYE_CHAR if canvas_x >= 0 && canvas_x < @width && canvas_y >= 0 && canvas_y < @height
+      end
+    end
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Eyes.new)

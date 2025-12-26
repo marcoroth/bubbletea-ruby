@@ -1,0 +1,120 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Multiple spinners example - cycle through different spinner styles
+# Ported from bubbletea/examples/spinners
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class FrameMessage < Bubbletea::Message
+end
+
+class Spinners
+  include Bubbletea::Model
+
+  SPINNERS = {
+    line: ["|", "/", "-", "\\"],
+    dot: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+    mini_dot: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+    jump: ["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"],
+    pulse: ["█", "▓", "▒", "░"],
+    points: ["∙∙∙", "●∙∙", "∙●∙", "∙∙●", "∙∙∙"],
+    globe: ["🌍", "🌎", "🌏"],
+    moon: ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"],
+    monkey: ["🙈", "🙉", "🙊"],
+    meter: ["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"],
+    hamburger: ["☱", "☲", "☴"],
+  }.freeze
+
+  SPINNER_NAMES = SPINNERS.keys.freeze
+
+  def initialize
+    @index = 0
+    @frame = 0
+    setup_styles
+  end
+
+  def setup_styles
+    @spinner_style = Lipgloss::Style.new.foreground("69")
+    @text_style = Lipgloss::Style.new.foreground("252")
+    @help_style = Lipgloss::Style.new.foreground("241")
+    @name_style = Lipgloss::Style.new.foreground("212").bold(true)
+  end
+
+  def init
+    [self, schedule_frame]
+  end
+
+  def update(message)
+    case message
+    when FrameMessage
+      @frame = (@frame + 1) % current_frames.length
+      [self, schedule_frame]
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        [self, Bubbletea.quit]
+      when "left", "h"
+        @index = (@index - 1) % SPINNER_NAMES.length
+        @frame = 0
+        [self, nil]
+      when "right", "l"
+        @index = (@index + 1) % SPINNER_NAMES.length
+        @frame = 0
+        [self, nil]
+      else
+        [self, nil]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    spinner_char = @spinner_style.render(current_frames[@frame])
+    spinner_name = @name_style.render(current_name.to_s)
+    text = @text_style.render("Spinning...")
+
+    lines = []
+    lines << ""
+    lines << "  #{spinner_char} #{text}"
+    lines << ""
+    lines << "  Style: #{spinner_name} (#{@index + 1}/#{SPINNER_NAMES.length})"
+    lines << ""
+    lines << @help_style.render("  h/l, ←/→: change spinner • q: exit")
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def current_name
+    SPINNER_NAMES[@index]
+  end
+
+  def current_frames
+    SPINNERS[current_name]
+  end
+
+  def schedule_frame
+    speed = case current_name
+            when :line then 0.1
+            when :pulse then 0.12
+            when :globe, :moon, :monkey then 0.3
+            else 0.08
+            end
+
+    Bubbletea.tick(speed) { FrameMessage.new }
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Spinners.new)

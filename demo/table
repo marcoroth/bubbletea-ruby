@@ -1,0 +1,95 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates the table component.
+# Ported from bubbletea/examples/table
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+COLUMNS = [
+  { title: "Rank", width: 4 },
+  { title: "City", width: 10 },
+  { title: "Country", width: 10 },
+  { title: "Population", width: 10 },
+].freeze
+
+ROWS = [
+  ["1", "Tokyo", "Japan", "37,274,000"],
+  ["2", "Delhi", "India", "32,065,760"],
+  ["3", "Shanghai", "China", "28,516,904"],
+  ["4", "Dhaka", "Bangladesh", "22,478,116"],
+  ["5", "São Paulo", "Brazil", "22,429,800"],
+  ["6", "Mexico City", "Mexico", "22,085,140"],
+  ["7", "Cairo", "Egypt", "21,750,020"],
+  ["8", "Beijing", "China", "21,333,332"],
+  ["9", "Mumbai", "India", "20,961,472"],
+  ["10", "Osaka", "Japan", "19,059,856"],
+  ["11", "Chongqing", "China", "16,874,740"],
+  ["12", "Karachi", "Pakistan", "16,839,950"],
+  ["13", "Istanbul", "Turkey", "15,636,243"],
+  ["14", "Kinshasa", "DR Congo", "15,628,085"],
+  ["15", "Lagos", "Nigeria", "15,387,639"],
+  ["16", "Buenos Aires", "Argentina", "15,369,919"],
+  ["17", "Kolkata", "India", "15,133,888"],
+  ["18", "Manila", "Philippines", "14,406,059"],
+  ["19", "Tianjin", "China", "14,011,828"],
+  ["20", "Guangzhou", "China", "13,964,637"],
+].freeze
+
+class TableDemo
+  include Bubbletea::Model
+
+  def initialize
+    @table = Bubbles::Table.new(
+      columns: COLUMNS,
+      rows: ROWS,
+      height: 10
+    )
+    @table.focus = true
+
+    @base_style = Lipgloss::Style.new.border(:normal).border_foreground("240")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "esc"
+        if @table.focused?
+          @table.blur
+        else
+          @table.focus
+        end
+      when "q", "ctrl+c"
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    @table, cmd = @table.update(message)
+
+    [self, cmd]
+  end
+
+  def selected_view
+    if @table.selected_row
+      row = @table.rows[@table.selected_row]
+
+      "Selected: #{row.inspect}"
+    else
+      "Selected: none"
+    end
+  end
+
+  def view
+    "#{@base_style.render(@table.view)}\n#{selected_view}"
+  end
+end
+
+Bubbletea.run(TableDemo.new)

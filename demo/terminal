@@ -1,0 +1,47 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Terminal control
+
+require "bundler/setup"
+require "bubbletea"
+
+puts "Bubbletea Ruby - Terminal Control Demo"
+puts "======================================="
+puts Bubbletea.version
+puts
+
+program = Bubbletea::Program.new
+
+puts "Running in TTY: #{Bubbletea.tty?}"
+
+size = program.terminal_size
+
+if size
+  puts "Terminal size: #{size[0]}x#{size[1]} (width x height)"
+else
+  puts "Terminal size: not available (not a TTY)"
+end
+
+puts
+
+if Bubbletea.tty?
+  puts "Entering raw mode..."
+  program.enter_raw_mode
+
+  puts "Hiding cursor..."
+  program.hide_cursor
+
+  sleep 1
+
+  puts "Showing cursor..."
+  program.show_cursor
+
+  puts "Exiting raw mode..."
+  program.exit_raw_mode
+
+  puts "Done!"
+else
+  puts "Skipping interactive demo (not running in a TTY)"
+  puts "Run this script directly in a terminal for the full demo."
+end

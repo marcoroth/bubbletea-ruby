@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Altscreen toggle example - demonstrates switching between alt screen and inline mode
+# Ported from bubbletea/examples/altscreen-toggle
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class AltscreenToggle
+  include Bubbletea::Model
+
+  def initialize
+    @altscreen = false
+    @quitting = false
+    @last_key = nil
+
+    setup_styles
+  end
+
+  def setup_styles
+    @keyword_style = Lipgloss::Style.new.foreground("204").background("235")
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      @last_key = message.to_s.inspect
+      case message.to_s
+      when "q", "ctrl+c", "esc"
+        @quitting = true
+        [self, Bubbletea.quit]
+      when " ", "space"
+        @altscreen = !@altscreen
+        cmd = @altscreen ? Bubbletea.enter_alt_screen : Bubbletea.exit_alt_screen
+        [self, cmd]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    return "Bye!\n" if @quitting
+
+    mode = @altscreen ? " altscreen mode " : " inline mode "
+    mode_styled = @keyword_style.render(mode)
+
+    lines = []
+    lines << ""
+    lines << ""
+    lines << "  You're in #{mode_styled}"
+    lines << ""
+    lines << ""
+    lines << @help_style.render("  space: switch modes • q: exit")
+    lines << @help_style.render("  Last key: #{@last_key}") if @last_key
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(AltscreenToggle.new)

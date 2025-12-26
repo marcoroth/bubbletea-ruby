@@ -1,0 +1,178 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Simulates package installation with progress bar and spinner.
+# Ported from bubbletea/examples/package-manager
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+PACKAGES = [
+  "vegeutils",
+  "libgardening",
+  "currykit",
+  "spicerack",
+  "fullenglish",
+  "eggy",
+  "bad-kitty",
+  "chai",
+  "hojicha",
+  "libtacos",
+  "babys-monads",
+  "libpurring",
+  "currywurst-devel",
+  "xmodmeow",
+  "licorice-utils",
+  "cashew-apple",
+  "rock-lobster",
+  "standmixer",
+  "coffee-CUPS",
+  "libesszet",
+  "zeichenorientierte-benutzerschnittstellen",
+  "schnurrkit",
+  "old-socks-devel",
+  "jalapeño",
+  "molasses-utils",
+  "xkohlrabi",
+  "party-gherkin",
+  "snow-peas",
+  "libyuzu",
+].freeze
+
+MAX_VISIBLE_COMPLETED = 10
+
+def packages
+  PACKAGES.shuffle.map do |pkg|
+    "#{pkg}-#{rand(10)}.#{rand(10)}.#{rand(10)}"
+  end
+end
+
+class InstalledPackageMessage < Bubbletea::Message
+  attr_reader :package
+
+  def initialize(package)
+    super()
+
+    @package = package
+  end
+end
+
+class PackageManagerDemo
+  include Bubbletea::Model
+
+  def initialize
+    @packages = packages
+    @index = 0
+    @width = 80
+    @height = 24
+    @done = false
+    @completed = []
+
+    @spinner = Bubbles::Spinner.new
+    @spinner.style = Lipgloss::Style.new.foreground("63")
+
+    @progress = Bubbles::Progress.new(width: 40)
+    @progress.show_percentage = false
+
+    @current_pkg_style = Lipgloss::Style.new.foreground("211")
+    @done_style = Lipgloss::Style.new.foreground("42").bold(true)
+    @check_mark = Lipgloss::Style.new.foreground("42").render("✓")
+    @completed_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, Bubbletea.batch(download_and_install(@packages[@index]), @spinner.tick)]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = message.width
+      @height = message.height
+
+    when Bubbletea::QuitMessage
+      return [self, Bubbletea.quit]
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "esc", "q"
+        return [self, Bubbletea.quit]
+      end
+
+    when InstalledPackageMessage
+      pkg = @packages[@index]
+      @completed << pkg
+      @index += 1
+
+      progress_cmd = @progress.set_percent(@index.to_f / @packages.length)
+
+      if @index >= @packages.length
+        @done = true
+
+        return [self, Bubbletea.tick(0.5) { Bubbletea::QuitMessage.new }]
+      end
+
+      return [self, Bubbletea.batch(
+        progress_cmd,
+        download_and_install(@packages[@index])
+      )]
+
+    when Bubbles::Spinner::TickMessage
+      @spinner, cmd = @spinner.update(message)
+
+      return [self, cmd]
+    when Bubbles::Progress::FrameMessage
+      @progress, cmd = @progress.update(message)
+
+      return [self, cmd]
+    end
+
+    [self, nil]
+  end
+
+  def view
+    n = @packages.length
+    visible_completed = @completed.last(MAX_VISIBLE_COMPLETED)
+
+    lines = visible_completed.map do |pkg|
+      "#{@check_mark} #{@completed_style.render(pkg)}"
+    end
+
+    if @done
+      lines << @done_style.render("\nDone! Installed #{n} packages.")
+      return lines.join("\n")
+    end
+
+    w = n.to_s.length
+    pkg_count = " #{@completed.length.to_s.rjust(w)}/#{n.to_s.rjust(w)}"
+
+    spin = "#{@spinner.view} "
+    prog = @progress.view
+    cells_avail = [@width - Lipgloss.width(spin + prog + pkg_count), 0].max
+
+    pkg_name = @current_pkg_style.render(@packages[@index])
+    info = Lipgloss::Style.new.max_width(cells_avail).render("Installing #{pkg_name}")
+
+    cells_remaining = [@width - Lipgloss.width(spin + info + prog + pkg_count), 0].max
+    gap = " " * cells_remaining
+
+    lines << (spin + info + gap + prog + pkg_count)
+
+    lines.join("\n")
+  end
+
+  private
+
+  def download_and_install(pkg)
+    delay = rand(0.02..0.1)
+
+    lambda {
+      sleep(delay)
+      InstalledPackageMessage.new(pkg)
+    }
+  end
+end
+
+Bubbletea.run(PackageManagerDemo.new)

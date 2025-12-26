@@ -1,0 +1,111 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates a credit card form with multiple text inputs and validation.
+# Ported from bubbletea/examples/credit-card-form
+
+require "bundler/setup"
+require "bubbletea"
+require "bubbles"
+require "lipgloss"
+
+CCN = 0
+EXP = 1
+CVV = 2
+
+class CreditCardFormDemo
+  include Bubbletea::Model
+
+  def initialize
+    @hot_pink = "205"
+    @dark_gray = "240"
+
+    @input_style = Lipgloss::Style.new.foreground(@hot_pink)
+    @continue_style = Lipgloss::Style.new.foreground(@dark_gray)
+
+    @inputs = []
+    @focused = 0
+    @error = nil
+
+    ccn_input = Bubbles::TextInput.new
+    ccn_input.placeholder = "4505 **** **** 1234"
+    ccn_input.char_limit = 20
+    ccn_input.width = 30
+    ccn_input.prompt = ""
+    @inputs << ccn_input
+
+    exp_input = Bubbles::TextInput.new
+    exp_input.placeholder = "MM/YY"
+    exp_input.char_limit = 5
+    exp_input.width = 5
+    exp_input.prompt = ""
+    @inputs << exp_input
+
+    cvv_input = Bubbles::TextInput.new
+    cvv_input.placeholder = "XXX"
+    cvv_input.char_limit = 3
+    cvv_input.width = 5
+    cvv_input.prompt = ""
+    @inputs << cvv_input
+  end
+
+  def init
+    [self, @inputs[0].focus]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "enter"
+        return [self, Bubbletea.quit] if @focused == @inputs.length - 1
+
+        next_input
+      when "ctrl+c", "esc"
+        return [self, Bubbletea.quit]
+      when "shift+tab"
+        prev_input
+      when "tab"
+        next_input
+      end
+
+      @inputs.each(&:blur)
+      @inputs[@focused].focus
+    end
+
+    cmds = @inputs.map do |input|
+      _, cmd = input.update(message)
+      cmd
+    end.compact
+
+    [self, Bubbletea.batch(*cmds)]
+  end
+
+  def view
+    <<~VIEW
+      Total: $21.50:
+
+      #{@input_style.width(30).render("Card Number")}
+      #{@inputs[CCN].view}
+
+      #{@input_style.width(6).render("EXP")}  #{@input_style.width(6).render("CVV")}
+      #{@inputs[EXP].view}  #{@inputs[CVV].view}
+
+      #{@continue_style.render("Continue ->")}
+
+    VIEW
+  end
+
+  private
+
+  def next_input
+    @focused = (@focused + 1) % @inputs.length
+  end
+
+  def prev_input
+    @focused -= 1
+    @focused = @inputs.length - 1 if @focused.negative?
+  end
+end
+
+Bubbletea.run(CreditCardFormDemo.new)

@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# List selection example
+
+require "bundler/setup"
+require "bubbletea"
+
+class ListModel
+  include Bubbletea::Model
+
+  CHOICES = [
+    "Buy carrots",
+    "Buy celery",
+    "Buy kohlrabi",
+    "Buy artichokes",
+    "Buy spinach",
+  ].freeze
+
+  def initialize
+    @cursor = 0
+    @selected = {}
+    @quitting = false
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        @quitting = true
+        [self, Bubbletea.quit]
+      when "up", "k"
+        @cursor = (@cursor - 1) % CHOICES.length
+        [self, nil]
+      when "down", "j"
+        @cursor = (@cursor + 1) % CHOICES.length
+        [self, nil]
+      when " ", "space", "enter"
+        if @selected[@cursor]
+          @selected.delete(@cursor)
+        else
+          @selected[@cursor] = true
+        end
+        [self, nil]
+      else
+        [self, nil]
+      end
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    return final_view if @quitting
+
+    lines = []
+    lines << ""
+    lines << "  What should we buy at the market?"
+    lines << ""
+
+    CHOICES.each_with_index do |choice, i|
+      cursor = i == @cursor ? ">" : " "
+      checked = @selected[i] ? "[x]" : "[ ]"
+      lines << "  #{cursor} #{checked} #{choice}"
+    end
+
+    lines << ""
+    lines << "  Press space to select, q to quit."
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def final_view
+    selected_items = @selected.keys.map { |i| CHOICES[i] }
+
+    lines = []
+    lines << ""
+    if selected_items.empty?
+      lines << "  You didn't select anything!"
+    else
+      lines << "  Shopping list:"
+      selected_items.each do |item|
+        lines << "    - #{item}"
+      end
+    end
+    lines << ""
+    lines.join("\n")
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY. Run it directly in a terminal."
+  exit 1
+end
+
+Bubbletea.run(ListModel.new)

@@ -1,0 +1,85 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Realtime events example - demonstrates receiving events at random intervals
+# Ported from bubbletea/examples/realtime
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+class FrameMessage < Bubbletea::Message
+end
+
+class Realtime
+  include Bubbletea::Model
+
+  SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"].freeze
+
+  def initialize
+    @events_received = 0
+    @frame = 0
+    @next_event_at = random_delay
+    @last_event_time = Time.now
+    setup_styles
+  end
+
+  def setup_styles
+    @spinner_style = Lipgloss::Style.new.foreground("205")
+    @count_style = Lipgloss::Style.new.foreground("212").bold(true)
+    @help_style = Lipgloss::Style.new.foreground("241")
+  end
+
+  def init
+    [self, schedule_frame]
+  end
+
+  def update(message)
+    case message
+    when FrameMessage
+      @frame = (@frame + 1) % SPINNER_FRAMES.length
+
+      if Time.now - @last_event_time >= @next_event_at
+        @events_received += 1
+        @last_event_time = Time.now
+        @next_event_at = random_delay
+      end
+
+      [self, schedule_frame]
+    when Bubbletea::KeyMessage
+      [self, Bubbletea.quit]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    spinner = @spinner_style.render(SPINNER_FRAMES[@frame])
+    count = @count_style.render(@events_received.to_s)
+
+    lines = []
+    lines << ""
+    lines << "  #{spinner} Events received: #{count}"
+    lines << ""
+    lines << @help_style.render("  Press any key to exit")
+    lines << ""
+    lines.join("\n")
+  end
+
+  private
+
+  def schedule_frame
+    Bubbletea.tick(0.08) { FrameMessage.new }
+  end
+
+  def random_delay
+    0.1 + (rand * 0.9)
+  end
+end
+
+unless Bubbletea.tty?
+  puts "Error: This example requires a TTY."
+  exit 1
+end
+
+Bubbletea.run(Realtime.new)

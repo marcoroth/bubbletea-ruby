@@ -1,0 +1,109 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple example demonstrating the use of multiple text input components.
+# Ported from bubbletea/examples/textinputs
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+class TextInputsDemo
+  include Bubbletea::Model
+
+  def initialize
+    @focused_style = Lipgloss::Style.new.foreground("205")
+    @blurred_style = Lipgloss::Style.new.foreground("240")
+    @help_style = @blurred_style
+    @cursor_mode_help_style = Lipgloss::Style.new.foreground("244")
+
+    @inputs = []
+    @focus_index = 0
+
+    nickname = Bubbles::TextInput.new
+    nickname.placeholder = "Nickname"
+    nickname.char_limit = 32
+    @inputs << nickname
+
+    email = Bubbles::TextInput.new
+    email.placeholder = "Email"
+    email.char_limit = 64
+    @inputs << email
+
+    password = Bubbles::TextInput.new
+    password.placeholder = "Password"
+    password.echo_mode = :password
+    password.echo_character = "•"
+    password.char_limit = 32
+    @inputs << password
+  end
+
+  def init
+    [self, @inputs[0].focus]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "esc"
+        return [self, Bubbletea.quit]
+
+      when "tab", "shift+tab", "enter", "up", "down"
+        s = message.to_s
+
+        return [self, Bubbletea.quit] if s == "enter" && @focus_index == @inputs.length
+
+        if ["up", "shift+tab"].include?(s)
+          @focus_index -= 1
+        else
+          @focus_index += 1
+        end
+
+        if @focus_index > @inputs.length
+          @focus_index = 0
+        elsif @focus_index.negative?
+          @focus_index = @inputs.length
+        end
+
+        cmds = []
+        @inputs.each_with_index do |input, i|
+          if i == @focus_index
+            cmds << input.focus
+          else
+            input.blur
+          end
+        end
+
+        return [self, Bubbletea.batch(*cmds)]
+      end
+    end
+
+    cmds = @inputs.map do |input|
+      _, cmd = input.update(message)
+      cmd
+    end.compact
+
+    [self, Bubbletea.batch(*cmds)]
+  end
+
+  def view
+    lines = @inputs.map(&:view)
+
+    button = if @focus_index == @inputs.length
+               @focused_style.render("[ Submit ]")
+             else
+               "[ #{@blurred_style.render("Submit")} ]"
+             end
+
+    lines << ""
+    lines << button
+    lines << ""
+    lines << @help_style.render("Press Tab to navigate, Enter to submit, Esc to quit")
+
+    lines.join("\n")
+  end
+end
+
+Bubbletea.run(TextInputsDemo.new)

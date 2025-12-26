@@ -1,0 +1,58 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple program that counts down from 5 and then exits.
+# Ported from bubbletea/examples/simple
+
+require "bundler/setup"
+require "bubbletea"
+
+class TickMessage < Bubbletea::Message
+end
+
+class SimpleDemo
+  include Bubbletea::Model
+
+  def initialize(count)
+    @count = count
+  end
+
+  def init
+    [self, tick]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "ctrl+c", "q"
+        [self, Bubbletea.quit]
+      else
+        [self, nil]
+      end
+
+    when TickMessage
+      @count -= 1
+      if @count <= 0
+        [self, Bubbletea.quit]
+      else
+        [self, tick]
+      end
+
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    "Hi. This program will exit in #{@count} seconds.\n\nTo quit sooner press ctrl-c or q...\n"
+  end
+
+  private
+
+  def tick
+    Bubbletea.tick(1.0) { TickMessage.new }
+  end
+end
+
+Bubbletea.run(SimpleDemo.new(5))

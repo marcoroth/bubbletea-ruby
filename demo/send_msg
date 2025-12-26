@@ -1,0 +1,122 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple example that shows how to send messages to a Bubble Tea program
+# from outside the program using Program.send(Msg).
+# Ported from bubbletea/examples/send-msg
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbletea"
+
+FOODS = [
+  "an apple", "a pear", "a gherkin", "a party gherkin",
+  "a kohlrabi", "some spaghetti", "tacos", "a currywurst", "some curry",
+  "a sandwich", "some peanut butter", "some cashews", "some ramen"
+].freeze
+
+class ResultMessage < Bubbletea::Message
+  attr_reader :food, :duration
+
+  def initialize(food:, duration:)
+    super()
+
+    @food = food
+    @duration = duration
+  end
+
+  def to_s
+    if @duration.zero?
+      @dot_style ||= Lipgloss::Style.new.foreground("241")
+      @dot_style.render("." * 30)
+    else
+      @duration_style ||= Lipgloss::Style.new.foreground("241")
+
+      "🍔 Ate #{@food} #{@duration_style.render("#{(@duration * 1000).round}ms")}"
+    end
+  end
+end
+
+class SendMsgDemo
+  include Bubbletea::Model
+
+  NUM_LAST_RESULTS = 5
+
+  def initialize
+    @results = Array.new(NUM_LAST_RESULTS) { ResultMessage.new(food: "", duration: 0) }
+    @quitting = false
+
+    @spinner_style = Lipgloss::Style.new.foreground("63")
+    @help_style = Lipgloss::Style.new.foreground("241").margin(1, 0, 0, 0)
+    @app_style = Lipgloss::Style.new.margin(1, 2, 0, 2)
+
+    @spinner_frames = ["|", "/", "-", "\\"]
+    @spinner_index = 0
+  end
+
+  def init
+    [self, spin]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      @quitting = true
+
+      [self, Bubbletea.quit]
+    when ResultMessage
+      @results = @results[1..] + [message]
+
+      [self, nil]
+    when SpinMessage
+      @spinner_index = (@spinner_index + 1) % @spinner_frames.length
+
+      [self, spin]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    s = if @quitting
+          "That's all for today!"
+        else
+          "#{@spinner_style.render(@spinner_frames[@spinner_index])} Eating food..."
+        end
+
+    s += "\n\n"
+
+    @results.each do |res|
+      s += "#{res}\n"
+    end
+
+    s += @help_style.render("Press any key to exit") unless @quitting
+
+    s += "\n" if @quitting
+
+    @app_style.render(s)
+  end
+
+  private
+
+  def spin
+    Bubbletea.tick(0.1) { SpinMessage.new }
+  end
+end
+
+class SpinMessage < Bubbletea::Message
+end
+
+program = Bubbletea::Runner.new(SendMsgDemo.new)
+
+# Simulate activity in a background thread
+Thread.new do
+  loop do
+    pause = rand(100..998) / 1000.0
+    sleep(pause)
+
+    program.send(ResultMessage.new(food: FOODS.sample, duration: pause))
+  end
+end
+
+program.run

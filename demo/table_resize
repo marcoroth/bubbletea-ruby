@@ -1,0 +1,110 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Demonstrates a resizable table that adapts to window size.
+# Ported from bubbletea/examples/table-resize
+
+require "bundler/setup"
+require "lipgloss"
+require "bubbles"
+require "bubbletea"
+
+HEADERS = ["#", "NAME", "TYPE 1", "TYPE 2", "JAPANESE"].freeze
+
+ROWS = [
+  ["1", "Bulbasaur", "Grass", "Poison", "フシギダネ"],
+  ["2", "Ivysaur", "Grass", "Poison", "フシギソウ"],
+  ["3", "Venusaur", "Grass", "Poison", "フシギバナ"],
+  ["4", "Charmander", "Fire", "", "ヒトカゲ"],
+  ["5", "Charmeleon", "Fire", "", "リザード"],
+  ["6", "Charizard", "Fire", "Flying", "リザードン"],
+  ["7", "Squirtle", "Water", "", "ゼニガメ"],
+  ["8", "Wartortle", "Water", "", "カメール"],
+  ["9", "Blastoise", "Water", "", "カメックス"],
+  ["10", "Caterpie", "Bug", "", "キャタピー"],
+  ["11", "Metapod", "Bug", "", "トランセル"],
+  ["12", "Butterfree", "Bug", "Flying", "バタフリー"],
+  ["13", "Weedle", "Bug", "Poison", "ビードル"],
+  ["14", "Kakuna", "Bug", "Poison", "コクーン"],
+  ["15", "Beedrill", "Bug", "Poison", "スピアー"],
+  ["16", "Pidgey", "Normal", "Flying", "ポッポ"],
+  ["17", "Pidgeotto", "Normal", "Flying", "ピジョン"],
+  ["18", "Pidgeot", "Normal", "Flying", "ピジョット"],
+  ["19", "Rattata", "Normal", "", "コラッタ"],
+  ["20", "Raticate", "Normal", "", "ラッタ"],
+  ["21", "Spearow", "Normal", "Flying", "オニスズメ"],
+  ["22", "Fearow", "Normal", "Flying", "オニドリル"],
+  ["23", "Ekans", "Poison", "", "アーボ"],
+  ["24", "Arbok", "Poison", "", "アーボック"],
+  ["25", "Pikachu", "Electric", "", "ピカチュウ"],
+  ["26", "Raichu", "Electric", "", "ライチュウ"],
+  ["27", "Sandshrew", "Ground", "", "サンド"],
+  ["28", "Sandslash", "Ground", "", "サンドパン"],
+].freeze
+
+TYPE_COLORS = {
+  "Bug" => "154",
+  "Electric" => "226",
+  "Fire" => "203",
+  "Flying" => "213",
+  "Grass" => "120",
+  "Ground" => "208",
+  "Normal" => "250",
+  "Poison" => "141",
+  "Water" => "45",
+}.freeze
+
+class TableResizeDemo
+  include Bubbletea::Model
+
+  def initialize
+    columns = [
+      { title: "#", width: 4 },
+      { title: "NAME", width: 12 },
+      { title: "TYPE 1", width: 10 },
+      { title: "TYPE 2", width: 10 },
+      { title: "JAPANESE", width: 12 },
+    ]
+
+    @table = Bubbles::Table.new(
+      columns: columns,
+      rows: ROWS,
+      height: 15
+    )
+    @table.focus = true
+
+    @width = 80
+    @height = 24
+
+    @base_style = Lipgloss::Style.new.border(:normal).border_foreground("238")
+  end
+
+  def init
+    [self, nil]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::WindowSizeMessage
+      @width = message.width
+      @height = message.height
+      @table.height = [@height - 6, 5].max
+
+    when Bubbletea::KeyMessage
+      case message.to_s
+      when "q", "ctrl+c"
+        return [self, Bubbletea.quit]
+      end
+    end
+
+    @table, cmd = @table.update(message)
+
+    [self, cmd]
+  end
+
+  def view
+    "\n#{@base_style.render(@table.view)}\n"
+  end
+end
+
+Bubbletea.run(TableResizeDemo.new, alt_screen: true)

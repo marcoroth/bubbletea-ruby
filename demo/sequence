@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A simple example illustrating how to run a series of commands in order.
+# Ported from bubbletea/examples/sequence
+
+require "bundler/setup"
+require "bubbletea"
+
+class SequenceDemo
+  include Bubbletea::Model
+
+  def init
+    [self, Bubbletea.sequence(
+      Bubbletea.batch(
+        Bubbletea.sequence(
+          sleep_puts("1-1-1", 1.0),
+          sleep_puts("1-1-2", 1.0)
+        ),
+        Bubbletea.batch(
+          sleep_puts("1-2-1", 1.5),
+          sleep_puts("1-2-2", 1.25)
+        )
+      ),
+      Bubbletea.puts("2"),
+      Bubbletea.sequence(
+        Bubbletea.batch(
+          sleep_puts("3-1-1", 0.5),
+          sleep_puts("3-1-2", 1.0)
+        ),
+        Bubbletea.sequence(
+          sleep_puts("3-2-1", 0.75),
+          sleep_puts("3-2-2", 0.5)
+        )
+      ),
+      Bubbletea.quit
+    )]
+  end
+
+  def update(message)
+    case message
+    when Bubbletea::KeyMessage
+      [self, Bubbletea.quit]
+    else
+      [self, nil]
+    end
+  end
+
+  def view
+    ""
+  end
+
+  private
+
+  def sleep_puts(text, seconds)
+    lambda {
+      sleep(seconds)
+      Bubbletea.puts(text)
+    }
+  end
+end
+
+Bubbletea.run(SequenceDemo.new)
