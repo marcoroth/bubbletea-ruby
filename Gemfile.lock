@@ -1,10 +1,3 @@
-GIT
-  remote: https://github.com/marcoroth/maxitest.git
-  revision: 359ea6ce0b1a2c5adbba55d275eef8e6a4a73e81
-  specs:
-    maxitest (6.1.0)
-      minitest (>= 6.0.0, < 6.1.0)
-
 PATH
   remote: .
   specs:
@@ -49,6 +42,8 @@ GEM
     lipgloss (0.2.0-x86_64-linux-gnu)
     lipgloss (0.2.0-x86_64-linux-musl)
     logger (1.7.0)
+    maxitest (7.0.0)
+      minitest (>= 6.0.0, < 6.1.0)
     minitest (6.0.0)
       prism (~> 1.5)
     parallel (1.27.0)
@@ -117,7 +112,7 @@ DEPENDENCIES
   irb
   lipgloss
   logger
-  maxitest!
+  maxitest (~> 7.0)
   rake (~> 13.0)
   rake-compiler (~> 1.3)
   rake-compiler-dock
