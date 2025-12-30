@@ -64,7 +64,7 @@ class GlamourDemo
     glamour_render_width = width - horizontal_frame_size - glamour_gutter
 
     rendered = Glamour.render(CONTENT, style: "auto", width: glamour_render_width)
-    @viewport.set_content(rendered)
+    @viewport.content = rendered
 
     @help_style = Lipgloss::Style.new.foreground("241")
   end

@@ -24,7 +24,7 @@ class ChatDemo
     @textarea.show_line_numbers = false
 
     @viewport = Bubbles::Viewport.new(width: 30, height: 5)
-    @viewport.set_content("Welcome to the chat room!\nType a message and press Enter to send.")
+    @viewport.content = "Welcome to the chat room!\nType a message and press Enter to send."
 
     @messages = []
     @sender_style = Lipgloss::Style.new.foreground("5")
@@ -46,7 +46,7 @@ class ChatDemo
 
       if @messages.any?
         content = Lipgloss::Style.new.width(@viewport.width).render(@messages.join("\n"))
-        @viewport.set_content(content)
+        @viewport.content = content
       end
       @viewport.goto_bottom
 
@@ -58,7 +58,7 @@ class ChatDemo
       when "enter"
         @messages << "#{@sender_style.render("You: ")}#{@textarea.value}"
         content = Lipgloss::Style.new.width(@viewport.width).render(@messages.join("\n"))
-        @viewport.set_content(content)
+        @viewport.content = content
         @textarea.reset
         @viewport.goto_bottom
       end
