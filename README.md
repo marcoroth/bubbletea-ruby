@@ -261,4 +261,14 @@ The gem is available as open source under the terms of the MIT License.
 
 ## Acknowledgments
 
-This gem wraps [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea), part of the excellent [Charm](https://charm.sh) ecosystem.
+This gem wraps [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea), part of the excellent [Charm](https://charm.sh) ecosystem. Charm Ruby is not affiliated with or endorsed by Charmbracelet, Inc.
+
+---
+
+Part of [Charm Ruby](https://charm-ruby.dev).
+
+<a href="https://charm-ruby.dev"><img alt="Charm Ruby" src="https://marcoroth.dev/images/heros/glamorous-christmas.png" width="400"></a>
+
+[Lipgloss](https://github.com/marcoroth/lipgloss-ruby) • [Bubble Tea](https://github.com/marcoroth/bubbletea-ruby) • [Bubbles](https://github.com/marcoroth/bubbles-ruby) • [Glamour](https://github.com/marcoroth/glamour-ruby) • [Huh?](https://github.com/marcoroth/huh-ruby) • [Harmonica](https://github.com/marcoroth/harmonica-ruby) • [Bubblezone](https://github.com/marcoroth/bubblezone-ruby) • [Gum](https://github.com/marcoroth/gum-ruby) • [ntcharts](https://github.com/marcoroth/ntcharts-ruby)
+
+The terminal doesn't have to be boring.
