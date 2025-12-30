@@ -119,7 +119,7 @@ class PagerDemo
           width: message.width,
           height: message.height - vertical_margin_height
         )
-        @viewport.set_content(@content)
+        @viewport.content = @content
         @ready = true
       end
     end
