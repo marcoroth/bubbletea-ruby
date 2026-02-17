@@ -1,0 +1,56 @@
+# Generated from lib/bubbletea/runner.rb with RBS::Inline
+
+module Bubbletea
+  # Runner manages the event loop and coordinates between the model and the terminal
+  class Runner
+    attr_reader options: untyped
+
+    DEFAULT_OPTIONS: untyped
+
+    def initialize: (untyped model, **untyped options) -> untyped
+
+    def run: () -> untyped
+
+    def send: (untyped message) -> untyped
+
+    private
+
+    def setup_terminal: () -> untyped
+
+    def cleanup_terminal: () -> untyped
+
+    def setup_resize_handler: () -> untyped
+
+    def restore_resize_handler: () -> untyped
+
+    def update_terminal_size: () -> untyped
+
+    def run_loop: () -> untyped
+
+    def check_resize: () -> untyped
+
+    def process_pending_messages: () -> untyped
+
+    def handle_message: (untyped message) -> untyped
+
+    def process_command: (untyped command) -> untyped
+
+    def execute_command_sync: (untyped command) -> untyped
+
+    def execute_sequence_sync: (untyped commands) -> untyped
+
+    def execute_batch_sync: (untyped commands) -> untyped
+
+    def schedule_tick: (untyped tick_command) -> untyped
+
+    def schedule_delayed_message: (untyped send_command) -> untyped
+
+    def process_ticks: () -> untyped
+
+    def suspend_process: () -> untyped
+
+    def render: () -> untyped
+  end
+
+  def self.run: (untyped model, **untyped options) -> untyped
+end

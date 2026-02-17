@@ -1,0 +1,5 @@
+# Generated from lib/bubbletea/version.rb with RBS::Inline
+
+module Bubbletea
+  VERSION: ::String
+end
