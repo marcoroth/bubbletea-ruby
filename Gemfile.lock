@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    bubbletea (0.1.0)
+    bubbletea (0.1.1)
       lipgloss (~> 0.1)
 
 GEM
