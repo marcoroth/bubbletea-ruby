@@ -24,6 +24,7 @@ Gem::Specification.new do |spec|
     "LICENSE.txt",
     "README.md",
     "CHANGELOG.md",
+    "sig/**/*.rbs",
     "lib/**/*.rb",
     "ext/**/*.{c,h,rb}",
     "go/**/*.{go,mod,sum}",
