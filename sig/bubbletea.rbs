@@ -1,3 +1,6 @@
+# Generated from lib/bubbletea.rb with RBS::Inline
+
 module Bubbletea
-  VERSION: String
+  class Error < StandardError
+  end
 end

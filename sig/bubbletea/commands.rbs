@@ -1,0 +1,80 @@
+# Generated from lib/bubbletea/commands.rb with RBS::Inline
+
+module Bubbletea
+  class Command
+  end
+
+  class QuitCommand < Command
+  end
+
+  class BatchCommand < Command
+    attr_reader commands: untyped
+
+    def initialize: (untyped commands) -> untyped
+  end
+
+  class TickCommand < Command
+    attr_reader duration: untyped
+
+    attr_reader callback: untyped
+
+    def initialize: (untyped duration) ?{ (?) -> untyped } -> untyped
+  end
+
+  class SendMessage < Command
+    attr_reader message: untyped
+
+    attr_reader delay: untyped
+
+    def initialize: (untyped message, ?delay: untyped) -> untyped
+  end
+
+  class SequenceCommand < Command
+    attr_reader commands: untyped
+
+    def initialize: (untyped commands) -> untyped
+  end
+
+  class EnterAltScreenCommand < Command
+  end
+
+  class ExitAltScreenCommand < Command
+  end
+
+  class SetWindowTitleCommand < Command
+    attr_reader title: untyped
+
+    def initialize: (untyped title) -> untyped
+  end
+
+  class PutsCommand < Command
+    attr_reader text: untyped
+
+    def initialize: (untyped text) -> untyped
+  end
+
+  class SuspendCommand < Command
+  end
+
+  def self.quit: () -> untyped
+
+  def self.batch: (*untyped commands) -> untyped
+
+  def self.tick: (untyped duration) ?{ (?) -> untyped } -> untyped
+
+  def self.send_message: (untyped message, ?delay: untyped) -> untyped
+
+  def self.sequence: (*untyped commands) -> untyped
+
+  def self.none: () -> untyped
+
+  def self.enter_alt_screen: () -> untyped
+
+  def self.exit_alt_screen: () -> untyped
+
+  def self.set_window_title: (untyped title) -> untyped
+
+  def self.puts: (untyped text) -> untyped
+
+  def self.suspend: () -> untyped
+end
