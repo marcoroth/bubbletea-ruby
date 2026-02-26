@@ -160,4 +160,39 @@ class TestRunnerCommandProcessing < Minitest::Spec
   it "process nil command" do
     @runner.__send__(:process_command, nil)
   end
+
+  it "process exec command calls callable" do
+    called = false
+    callable = -> { called = true }
+
+    program = Object.new
+    [:disable_mouse, :show_cursor, :stop_input_reader, :exit_raw_mode, :enter_raw_mode, :hide_cursor, :start_input_reader].each do |method|
+      program.define_singleton_method(method) { nil }
+    end
+
+    @runner.instance_variable_set(:@program, program)
+
+    cmd = Bubbletea.exec(callable)
+    @runner.__send__(:process_command, cmd)
+
+    assert called
+  end
+
+  it "process exec command dispatches message" do
+    called = false
+    callable = -> { called = true }
+
+    program = Object.new
+    [:disable_mouse, :show_cursor, :stop_input_reader, :exit_raw_mode, :enter_raw_mode, :hide_cursor, :start_input_reader].each do |method|
+      program.define_singleton_method(method) { nil }
+    end
+
+    @runner.instance_variable_set(:@program, program)
+
+    cmd = Bubbletea.exec(callable, message: :exec_done)
+    @runner.__send__(:process_command, cmd)
+
+    assert called
+    assert_includes @model.messages, :exec_done
+  end
 end

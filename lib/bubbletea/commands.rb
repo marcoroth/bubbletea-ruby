@@ -78,6 +78,16 @@ module Bubbletea
   class SuspendCommand < Command
   end
 
+  class ExecCommand < Command
+    attr_reader :callable, :message
+
+    def initialize(callable, message: nil)
+      super()
+      @callable = callable
+      @message = message
+    end
+  end
+
   class << self
     def quit
       QuitCommand.new
@@ -121,6 +131,10 @@ module Bubbletea
 
     def suspend
       SuspendCommand.new
+    end
+
+    def exec(callable, message: nil)
+      ExecCommand.new(callable, message: message)
     end
   end
 end
