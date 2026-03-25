@@ -233,6 +233,9 @@ module Bubbletea
       when SuspendCommand
         suspend_process
 
+      when ExecCommand
+        exec_process(command)
+
       when Proc
         Thread.new do
           result = command.call
@@ -285,6 +288,9 @@ module Bubbletea
 
       when SuspendCommand
         suspend_process
+
+      when ExecCommand
+        exec_process(command)
 
       when Proc
         result = command.call
@@ -358,6 +364,23 @@ module Bubbletea
       @program.enable_mouse_all_motion if @options[:mouse_all_motion]
 
       handle_message(ResumeMessage.new)
+    end
+
+    def exec_process(command)
+      @program.disable_mouse if @options[:mouse_cell_motion] || @options[:mouse_all_motion]
+      @program.show_cursor
+      @program.stop_input_reader
+      @program.exit_raw_mode
+
+      command.callable.call
+
+      @program.enter_raw_mode
+      @program.hide_cursor
+      @program.start_input_reader
+      @program.enable_mouse_cell_motion if @options[:mouse_cell_motion]
+      @program.enable_mouse_all_motion if @options[:mouse_all_motion]
+
+      handle_message(command.message) if command.message
     end
 
     def render

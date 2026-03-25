@@ -7,22 +7,11 @@
 require "bundler/setup"
 require "bubbletea"
 
-class EditorFinishedMessage < Bubbletea::Message
-  attr_reader :error
-
-  def initialize(error = nil)
-    super()
-
-    @error = error
-  end
-end
-
 class ExecDemo
   include Bubbletea::Model
 
   def initialize
     @altscreen_active = false
-    @error = nil
   end
 
   def init
@@ -39,37 +28,19 @@ class ExecDemo
 
         return [self, cmd]
       when "e"
-        return [self, open_editor]
+        editor = ENV["EDITOR"] || "vim"
+        return [self, Bubbletea.exec(-> { system(editor) })]
       when "ctrl+c", "q"
         return [self, Bubbletea.quit]
       end
 
-    when EditorFinishedMessage
-      if message.error
-        @error = message.error
-        return [self, Bubbletea.quit]
-      end
     end
 
     [self, nil]
   end
 
   def view
-    return "Error: #{@error}\n" if @error
-
     "Press 'e' to open your EDITOR.\nPress 'a' to toggle the altscreen\nPress 'q' to quit.\n"
-  end
-
-  private
-
-  def open_editor
-    lambda do
-      editor = ENV["EDITOR"] || "vim"
-      system(editor)
-      EditorFinishedMessage.new
-    rescue StandardError => e
-      EditorFinishedMessage.new(e.message)
-    end
   end
 end
 
