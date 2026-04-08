@@ -1,4 +1,5 @@
 #include "extension.h"
+#include <string.h>
 
 static void program_free(void *pointer) {
   bubbletea_program_t *program = (bubbletea_program_t *)pointer;
@@ -27,6 +28,7 @@ const rb_data_type_t program_type = {
 static VALUE program_alloc(VALUE klass) {
   bubbletea_program_t *program = ALLOC(bubbletea_program_t);
   program->handle = tea_new_program();
+  program->pending_len = 0;
   return TypedData_Wrap_Struct(klass, &program_type, program);
 }
 
@@ -159,18 +161,35 @@ static VALUE program_poll_event(VALUE self, VALUE timeout_ms) {
   GET_PROGRAM(self, program);
 
   char buffer[256];
-  int bytes_read = tea_input_read_raw(program->handle, buffer, sizeof(buffer), NUM2INT(timeout_ms));
+  int bytes_avail;
 
-  if (bytes_read <= 0) {
-    return Qnil; // Timeout or error
+  if (program->pending_len > 0) {
+    /* Consume buffered bytes from a previous read first */
+    memcpy(buffer, program->pending_buf, program->pending_len);
+    bytes_avail = program->pending_len;
+    program->pending_len = 0;
+  } else {
+    /* No buffered data — read from stdin */
+    bytes_avail = tea_input_read_raw(program->handle, buffer, sizeof(buffer), NUM2INT(timeout_ms));
+    if (bytes_avail <= 0) {
+      return Qnil; /* Timeout or error */
+    }
   }
 
   int consumed;
-  char *json = tea_parse_input_with_consumed(buffer, bytes_read, &consumed);
+  char *json = tea_parse_input_with_consumed(buffer, bytes_avail, &consumed);
 
   if (json == NULL || json[0] == '\0') {
     tea_free(json);
+    /* If parse failed but there are remaining bytes, discard them to avoid loops */
     return Qnil;
+  }
+
+  /* Save any unconsumed bytes for the next poll_event call */
+  int remaining = bytes_avail - consumed;
+  if (remaining > 0 && remaining <= (int)sizeof(program->pending_buf)) {
+    memcpy(program->pending_buf, buffer + consumed, remaining);
+    program->pending_len = remaining;
   }
 
   VALUE rb_json = rb_utf8_str_new_cstr(json);
