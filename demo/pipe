@@ -16,7 +16,7 @@ class PipeDemo
     @input = Bubbles::TextInput.new
     @input.prompt = ""
     @input.width = 48
-    @input.set_value(initial_value)
+    @input.value = initial_value
     @input.cursor_end
   end
 
