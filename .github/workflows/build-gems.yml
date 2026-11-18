@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload gem artifacts
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gem-${{ matrix.target }}
           path: pkg/*.gem
@@ -70,12 +70,12 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Vendor release-gem patch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: rubygems/release-gem
           ref: 1c162a739e8b4cb21a676e97b087e8268d8fc40b # v1.1.2
@@ -87,14 +87,14 @@ jobs:
           bundler-cache: true
 
       - name: Download gem artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: gem-*
           path: pkg/
           merge-multiple: true
 
       - name: Configure trusted publishing credentials
-        uses: rubygems/configure-rubygems-credentials@v1.0.0
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
 
       - name: Push gem with Sigstore attestation
         env:
