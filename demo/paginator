@@ -19,7 +19,7 @@ class PaginatorDemo
       type: :dots,
       per_page: 10
     )
-    @paginator.set_total_pages(@items.length)
+    @paginator.update_total_pages(@items.length)
 
     @active_dot_style = Lipgloss::Style.new.foreground("252")
     @inactive_dot_style = Lipgloss::Style.new.foreground("238")
