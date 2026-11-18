@@ -9,8 +9,12 @@ extern VALUE cProgram;
 
 extern const rb_data_type_t program_type;
 
+#define BUBBLETEA_INPUT_BUFFER_SIZE 256
+
 typedef struct {
   unsigned long long handle;
+  char input[BUBBLETEA_INPUT_BUFFER_SIZE];
+  int input_length;
 } bubbletea_program_t;
 
 #define GET_PROGRAM(self, program) \
