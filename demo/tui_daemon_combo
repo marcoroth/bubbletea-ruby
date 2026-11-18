@@ -20,7 +20,7 @@ class ProcessFinishedMessage < Bubbletea::Message
   attr_reader :duration
 
   def initialize(duration)
-    super
+    super()
 
     @duration = duration
   end
