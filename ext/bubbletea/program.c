@@ -27,6 +27,7 @@ const rb_data_type_t program_type = {
 static VALUE program_alloc(VALUE klass) {
   bubbletea_program_t *program = ALLOC(bubbletea_program_t);
   program->handle = tea_new_program();
+  program->input_length = 0;
   return TypedData_Wrap_Struct(klass, &program_type, program);
 }
 
@@ -158,15 +159,25 @@ static VALUE program_read_raw_input(VALUE self, VALUE timeout_ms) {
 static VALUE program_poll_event(VALUE self, VALUE timeout_ms) {
   GET_PROGRAM(self, program);
 
-  char buffer[256];
-  int bytes_read = tea_input_read_raw(program->handle, buffer, sizeof(buffer), NUM2INT(timeout_ms));
+  if (program->input_length == 0) {
+    int bytes_read = tea_input_read_raw(program->handle, program->input, sizeof(program->input), NUM2INT(timeout_ms));
 
-  if (bytes_read <= 0) {
-    return Qnil; // Timeout or error
+    if (bytes_read <= 0) {
+      return Qnil;
+    }
+
+    program->input_length = bytes_read;
   }
 
-  int consumed;
-  char *json = tea_parse_input_with_consumed(buffer, bytes_read, &consumed);
+  int consumed = 0;
+  char *json = tea_parse_input_with_consumed(program->input, program->input_length, &consumed);
+
+  if (consumed <= 0 || consumed > program->input_length) {
+    consumed = program->input_length;
+  }
+
+  program->input_length -= consumed;
+  memmove(program->input, program->input + consumed, program->input_length);
 
   if (json == NULL || json[0] == '\0') {
     tea_free(json);
