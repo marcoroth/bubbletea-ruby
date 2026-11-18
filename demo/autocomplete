@@ -77,7 +77,7 @@ class AutocompleteDemo
     when ReposSuccessMessage
       @loading = false
       suggestions = message.repos.map { |r| r["name"] }
-      @text_input.set_suggestions(suggestions)
+      @text_input.suggestions = suggestions
 
     when ReposErrorMessage
       @loading = false
