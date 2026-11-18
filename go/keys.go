@@ -334,6 +334,28 @@ func ParseInput(data []byte) (int, string) {
 	return size, string(jsonBytes)
 }
 
+// mouseButton maps mouse report buttons to Bubbletea::MouseMessage buttons
+func mouseButton(button int) int {
+	low := button & 3
+
+	if (button & 64) != 0 {
+		switch low {
+		case 0:
+			return 4 // wheel up
+		case 1:
+			return 5 // wheel down
+		default:
+			return 0 // wheel left/right
+		}
+	}
+
+	if low == 3 {
+		return 0 // none
+	}
+
+	return low + 1
+}
+
 // parseMouseSGR parses SGR mouse format: ESC [ < Cb ; Cx ; Cy M/m
 func parseMouseSGR(data []byte) (int, MouseEvent) {
 	// Format: \x1b[<button;x;y(M|m)
@@ -368,7 +390,7 @@ func parseMouseSGR(data []byte) (int, MouseEvent) {
 	alt := (button & 8) != 0
 	ctrl := (button & 16) != 0
 	motion := (button & 32) != 0
-	buttonNum := button & 3
+	buttonNum := mouseButton(button)
 
 	action := 0 // press
 
@@ -376,14 +398,6 @@ func parseMouseSGR(data []byte) (int, MouseEvent) {
 		action = 1 // release
 	} else if motion {
 		action = 2 // motion
-	}
-
-	if (button & 64) != 0 {
-		if buttonNum == 0 {
-			buttonNum = 4 // wheel up
-		} else if buttonNum == 1 {
-			buttonNum = 5 // wheel down
-		}
 	}
 
 	return endIndex + 1, MouseEvent{
